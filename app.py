@@ -123,34 +123,54 @@ with col_post:
         """
         
         if st.button("✨ Bắt đầu tạo 3 phiên bản bài đăng"):
-            with st.spinner("Gemini đang soạn bài và kiểm tra Meta Policy..."):
-                try:
-                    response = client.models.generate_content(
-                        model='gemini-3.8-flash',
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json"
-                        )
-                    )
-                    st.session_state['ai_result'] = json.loads(response.text)
-                    st.success("Tạo bài thành công!")
-                except Exception as e:
-                    st.error(f"Lỗi khi xử lý bài viết: {e}")
-
-        # Hiển thị kết quả 3 Tab
-        if st.session_state.get('ai_result'):
-            res = st.session_state['ai_result']
-            tab1, tab2, tab3 = st.tabs(["🔥 Sarcastic & Witty", "🗣️ Engaging Gossip", "🧐 Analytical"])
+            import time
             
-            with tab1:
-                st.text_area("Bấm vào để copy (Sarcastic):", res.get("witty", ""), height=240)
-            with tab2:
-                st.text_area("Bấm vào để copy (Gossip):", res.get("gossip", ""), height=240)
-            with tab3:
-                st.text_area("Bấm vào để copy (Analytical):", res.get("analytical", ""), height=240)
+            with st.spinner("Gemini đang viết bài (đang kết nối máy chủ tối ưu nhất)..."):
+                response_text = None
                 
-            st.markdown("#### 💬 Bình luận mồi (Seed Comments):")
-            for c in res.get("seed_comments", []):
-                st.code(c, language="text")
-    else:
-        st.write("👈 Chọn một tin từ danh sách bên trái và bấm **'Viết bài Facebook'**.")
+                # Danh sách các model theo thứ tự ưu tiên
+                models_to_try = [
+                    'gemini-2.5-flash',
+                    'gemini-2.0-flash',
+                    'gemini-flash-latest',
+                    'gemini-1.5-flash'
+                ]
+                
+                last_error = None
+                
+                # Quét qua từng model, nếu gặp 503 quá tải sẽ tự động chuyển sang model kế tiếp
+                for model_name in models_to_try:
+                    for attempt in range(2):  # Thử tối đa 2 lần cho mỗi model nếu server bận
+                        try:
+                            response = client.models.generate_content(
+                                model=model_name,
+                                contents=prompt,
+                                config=types.GenerateContentConfig(
+                                    response_mime_type="application/json"
+                                )
+                            )
+                            if response and response.text:
+                                response_text = response.text
+                                break
+                        except Exception as e:
+                            last_error = e
+                            error_str = str(e)
+                            # Nếu gặp 503 (quá tải) hoặc 429 (hạn ngạch), đợi 2 giây rồi thử lại hoặc đổi model
+                            if "503" in error_str or "429" in error_str:
+                                time.sleep(2)
+                                continue
+                            else:
+                                break  # Lỗi khác thì chuyển luôn sang model kế tiếp
+                                
+                    if response_text:
+                        break  # Đã lấy được kết quả thành công, thoát vòng lặp
+                
+                if response_text:
+                    try:
+                        st.session_state['ai_result'] = json.loads(response_text)
+                        st.success("Tạo bài thành công!")
+                    except Exception as json_err:
+                        st.error(f"Lỗi cấu trúc dữ liệu JSON: {json_err}")
+                else:
+                    st.error(f"Máy chủ Google đang quá tải tạm thời: {last_error}")
+                    st.info("👉 Bạn hãy bấm lại nút một lần nữa sau vài giây nhé!")
