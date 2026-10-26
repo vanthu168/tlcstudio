@@ -126,7 +126,7 @@ with col_post:
             with st.spinner("Gemini đang soạn bài và kiểm tra Meta Policy..."):
                 try:
                     response = client.models.generate_content(
-                        model='gemini-1.5-flash',
+                        model='gemini-3.8-flash',
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json"
