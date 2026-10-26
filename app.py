@@ -26,7 +26,7 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 # 3. Kết nối Google Sheet qua ID của bạn
-SHEET_ID = "1MNbKOlFWj4NqDn9jaO44bWZLz9WPUKivgF0Uz_18mHc"
+SHEET_ID = "AQ.Ab8RN6Jp1HmMtGLsVtcOpaXOnDXzjvoGUJ4HUqFEQ45xiviXyg"
 TAB_NAME = "Hôm nay"
 encoded_tab = urllib.parse.quote(TAB_NAME)
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_tab}"
