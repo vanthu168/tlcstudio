@@ -131,7 +131,7 @@ with col_post:
                 # Danh sách các model theo thứ tự ưu tiên
                 models_to_try = [
                     'gemini-2.5-flash',
-                    'gemini-2.0-flash',
+                    'gemini-3.0-flash',
                     'gemini-flash-latest',
                     'gemini-1.5-flash'
                 ]
