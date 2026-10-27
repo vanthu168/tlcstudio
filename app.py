@@ -1,176 +1,146 @@
 import streamlit as st
 import pandas as pd
-import json
-import os
 import urllib.parse
-from google import genai
-from google.genai import types
+import re
 
-# 1. Cấu hình giao diện ứng dụng Streamlit
+# 1. Cấu hình giao diện Streamlit
 st.set_page_config(
-    page_title="TLC News to Facebook", 
-    page_icon="📺", 
+    page_title="TLC Content Hub",
+    page_icon="📺",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("📺 TLC News Săn Tin ➔ Facebook Post Generator")
-
-# 2. Cấu hình API Key Gemini an toàn
-api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY"))
-if not api_key:
-    st.error("⚠️ Chưa cấu hình GEMINI_API_KEY trong phần Secrets của Streamlit Cloud hoặc biến môi trường!")
-    st.info("Hãy vào Settings > Secrets trên Streamlit Cloud và thêm: GEMINI_API_KEY = 'mã_api_key_của_bạn'")
-    st.stop()
-
-client = genai.Client(api_key=api_key)
-
-# 3. Kết nối Google Sheet qua ID của bạn
+# 2. Cấu hình kết nối Google Sheet
 SHEET_ID = "1MNbKOlFWj4NqDn9jaO44bWZLz9WPUKivgF0Uz_18mHc"
 TAB_NAME = "Hôm nay"
 encoded_tab = urllib.parse.quote(TAB_NAME)
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_tab}"
 
-# Hàm tải dữ liệu (tự làm mới sau mỗi 5 phút hoặc khi bấm nút Refresh)
-@st.cache_data(ttl=300)
-def load_sheet_data(url):
-    return pd.read_csv(url)
+# Hàm tải dữ liệu (Cache 2 phút để tải siêu nhanh trên mobile, tự làm mới khi bấm nút)
+@st.cache_data(ttl=120)
+def load_data():
+    data = pd.read_csv(SHEET_URL)
+    # Chuẩn hóa tên cột để tránh khoảng trắng thừa
+    data.columns = [c.strip() for c in data.columns]
+    return data
 
 try:
-    df = load_sheet_data(SHEET_URL)
+    df = load_data()
 except Exception as e:
-    st.error(f"❌ Không thể đọc dữ liệu từ Google Sheet: {e}")
-    st.warning("👉 Hãy đảm bảo bạn đã bật quyền chia sẻ: 'Bất kỳ ai có đường liên kết đều có thể xem' (Anyone with link can view) trên Google Sheet!")
+    st.error(f"❌ Không thể tải dữ liệu từ Google Sheet: {e}")
+    st.info("👉 Hãy đảm bảo bảng tính đã bật chia sẻ: 'Bất kỳ ai có đường liên kết đều có thể xem'.")
     st.stop()
 
-# 4. Thanh điều khiển bên trái (Sidebar)
-st.sidebar.header("🔍 Bộ lọc tin tức")
+# Hàm lấy nội dung kịch bản (ưu tiên Cột N / cột số 14)
+def get_script_content(row):
+    # Nếu có cột thứ 14 (Cột N)
+    if len(row) >= 14 and pd.notna(row.iloc[13]) and str(row.iloc[13]).strip() != "":
+        return str(row.iloc[13]).strip()
+    # Nếu Cột N chưa có, kiểm tra Cột M (Kịch bản)
+    if "Kịch bản" in row and pd.notna(row["Kịch bản"]) and str(row["Kịch bản"]).strip() != "":
+        return str(row["Kịch bản"]).strip()
+    return ""
 
-if st.sidebar.button("🔄 Làm mới dữ liệu từ Sheet"):
+# Hàm bóc tách nội dung kịch bản thành từng phần hiển thị
+def parse_script(raw_text):
+    if not raw_text:
+        return None
+    
+    sections = {
+        "witty": "",
+        "gossip": "",
+        "analytical": "",
+        "comments": ""
+    }
+    
+    # Tách theo các thẻ tiêu đề
+    p_witty = re.search(r'\[OPTION 1:.*?\](.*?)(?=\[OPTION 2:|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_gossip = re.search(r'\[OPTION 2:.*?\](.*?)(?=\[OPTION 3:|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=\[SEED COMMENTS\]|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_comm = re.search(r'\[SEED COMMENTS\](.*)', raw_text, re.DOTALL | re.IGNORECASE)
+    
+    sections["witty"] = p_witty.group(1).strip() if p_witty else ""
+    sections["gossip"] = p_gossip.group(1).strip() if p_gossip else ""
+    sections["analytical"] = p_anal.group(1).strip() if p_anal else ""
+    sections["comments"] = p_comm.group(1).strip() if p_comm else ""
+    
+    # Nếu không khớp regex chuẩn thì hiển thị toàn bộ vào witty
+    if not any([sections["witty"], sections["gossip"], sections["analytical"]]):
+        sections["witty"] = raw_text
+        
+    return sections
+
+# 3. Tiêu đề ứng dụng & Thống kê nhanh
+st.title("📺 TLC News & Content Hub")
+st.caption(f"Dữ liệu trực tiếp từ Google Sheet (Tab: **{TAB_NAME}**)")
+
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+total_news = len(df)
+has_script = sum(1 for _, r in df.iterrows() if get_script_content(r) != "")
+new_news = total_news - has_script
+sensitive_count = df['Nhạy cảm'].dropna().count() if 'Nhạy cảm' in df.columns else 0
+
+col_m1.metric("Tổng số tin", total_news)
+col_m2.metric("✅ Đã có kịch bản", has_script)
+col_m3.metric("🆕 Đang chờ kịch bản", new_news)
+col_m4.metric("⚠️ Cảnh báo nhạy cảm", sensitive_count)
+
+st.divider()
+
+# 4. Thanh công cụ bên trái (Sidebar)
+st.sidebar.header("🔍 Bộ lọc & Tìm kiếm")
+
+if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
 
-all_shows = ["Tất cả"] + [str(s) for s in df['Show'].dropna().unique()]
-selected_show = st.sidebar.selectbox("Chọn Show:", all_shows)
+# Bộ lọc Show
+all_shows = ["Tất cả Show"] + [str(s) for s in df['Show'].dropna().unique()]
+selected_show = st.sidebar.selectbox("Lọc theo Show:", all_shows)
 
-filter_status = st.sidebar.radio("Trạng thái:", ["Chỉ tin 'Mới'", "Tất cả"])
+# Bộ lọc trạng thái
+filter_status = st.sidebar.radio(
+    "Lọc kịch bản:",
+    ["Tất cả", "Chỉ bài 'Đã có kịch bản'", "Chỉ bài 'Mới'"],
+    index=1  # Mặc định mở bài đã có kịch bản để bạn copy nhanh
+)
 
-# Áp dụng bộ lọc
+# Tìm kiếm từ khóa
+search_kw = st.sidebar.text_input("Tìm kiếm tiêu đề:", placeholder="Nhập tên nhân vật, từ khóa...")
+
+# Lọc dữ liệu
 filtered_df = df.copy()
-if selected_show != "Tất cả":
+
+if selected_show != "Tất cả Show":
     filtered_df = filtered_df[filtered_df['Show'] == selected_show]
-if filter_status == "Chỉ tin 'Mới'" and 'Trạng thái' in filtered_df.columns:
-    filtered_df = filtered_df[filtered_df['Trạng thái'] == "Mới"]
 
-st.sidebar.markdown(f"**Tổng số tin:** {len(filtered_df)}")
+if filter_status == "Chỉ bài 'Đã có kịch bản'":
+    filtered_df = filtered_df[filtered_df.apply(lambda r: get_script_content(r) != "", axis=1)]
+elif filter_status == "Chỉ bài 'Mới'":
+    filtered_df = filtered_df[filtered_df.apply(lambda r: get_script_content(r) == "", axis=1)]
 
-# 5. Bố cục 2 cột: Cột trái xem tin, Cột phải tạo bài
-col_list, col_post = st.columns([1, 1.2])
+if search_kw.strip():
+    filtered_df = filtered_df[filtered_df['Tiêu đề'].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
 
-with col_list:
-    st.subheader(f"📋 Danh sách tin ({TAB_NAME})")
+# 5. Bố cục hiển thị chính: Cột trái (Danh sách) | Cột phải (Chi tiết & Copy)
+col_left, col_right = st.columns([1, 1.3])
+
+with col_left:
+    st.subheader(f"📋 Danh sách tin ({len(filtered_df)})")
     
     if filtered_df.empty:
-        st.info("Không có tin nào phù hợp với bộ lọc hiện tại.")
+        st.info("Không tìm thấy tin nào phù hợp.")
     else:
         for idx, row in filtered_df.iterrows():
-            with st.container(border=True):
-                st.markdown(f"**[{row.get('Show', '')}]** {row.get('Tiêu đề', '')}")
-                
-                info_text = f"Nguồn: {row.get('Nguồn', 'N/A')} | Loại: {row.get('Loại', 'N/A')}"
-                if pd.notna(row.get('Tương tác')):
-                    info_text += f" | {row.get('Tương tác')}"
-                st.caption(info_text)
-                
-                if pd.notna(row.get('Nhạy cảm')):
-                    st.warning(f"⚠️ Nhạy cảm: {row.get('Nhạy cảm')}")
-                
-                if st.button("🚀 Viết bài Facebook", key=f"btn_{idx}"):
-                    st.session_state['selected_item'] = row.to_dict()
-                    st.session_state['ai_result'] = None
-
-with col_post:
-    st.subheader("✍️ Trợ lý Gemini lên bài")
-    
-    if 'selected_item' in st.session_state and st.session_state['selected_item'] is not None:
-        item = st.session_state['selected_item']
-        
-        st.info(f"Đang chọn: **[{item.get('Show')}] {item.get('Tiêu đề')}**")
-        if pd.notna(item.get('Link')):
-            st.caption(f"🔗 Link gốc: {item.get('Link')}")
-        
-        prompt = f"""
-        Bạn là chuyên gia sáng tạo nội dung hàng đầu cho fanpage Reality TV TLC (US).
-        Dựa vào tin tức sau:
-        - Show: {item.get('Show')}
-        - Tiêu đề: {item.get('Tiêu đề')}
-        - Nguồn: {item.get('Nguồn')}
-        - Link: {item.get('Link')}
-        - Tương tác: {item.get('Tương tác')}
-
-        QUY ĐỊNH BẮT BUỘC:
-        1. 100% tuân thủ Meta Policy (Facebook): Tuyệt đối không dùng từ ngữ thô tục, bạo lực, xúc phạm danh dự hay trigger kiểm duyệt.
-        2. Viết bằng tiếng Anh chuẩn văn hóa fanpage TLC (dùng tiếng lóng, văn phong bàn tán sắc sảo, tự nhiên).
-        3. Tạo ra đúng 3 phong cách (Sarcastic & Witty, Engaging Gossip, Analytical) và 4 bình luận mồi (seed comments).
-
-        Trả về kết quả bằng định dạng JSON thuần túy (không kèm markdown ngoài) theo cấu trúc:
-        {{
-            "witty": "Nội dung bài viết phong cách sarcastic & witty...",
-            "gossip": "Nội dung bài viết phong cách engaging gossip...",
-            "analytical": "Nội dung bài viết phong cách analytical...",
-            "seed_comments": ["Bình luận mồi 1", "Bình luận mồi 2", "Bình luận mồi 3", "Bình luận mồi 4"]
-        }}
-        """
-        
-        if st.button("✨ Bắt đầu tạo 3 phiên bản bài đăng"):
-            import time
+            script_text = get_script_content(row)
+            is_ready = bool(script_text)
             
-            with st.spinner("Gemini đang viết bài (đang kết nối máy chủ tối ưu nhất)..."):
-                response_text = None
+            with st.container(border=True):
+                # Header thẻ tin
+                badge = "🟢 Đã có kịch bản" if is_ready else "⚪ Mới"
+                st.markdown(f"**[{row.get('Show', '')}]** {badge}")
+                st.markdown(f"**{row.get('Tiêu đề', '')}**")
                 
-                # Danh sách các model theo thứ tự ưu tiên
-                models_to_try = [
-                    'gemini-2.5-flash',
-                    'gemini-3.0-flash',
-                    'gemini-flash-latest',
-                    'gemini-3.8-flash'
-                ]
-                
-                last_error = None
-                
-                # Quét qua từng model, nếu gặp 503 quá tải sẽ tự động chuyển sang model kế tiếp
-                for model_name in models_to_try:
-                    for attempt in range(2):  # Thử tối đa 2 lần cho mỗi model nếu server bận
-                        try:
-                            response = client.models.generate_content(
-                                model=model_name,
-                                contents=prompt,
-                                config=types.GenerateContentConfig(
-                                    response_mime_type="application/json"
-                                )
-                            )
-                            if response and response.text:
-                                response_text = response.text
-                                break
-                        except Exception as e:
-                            last_error = e
-                            error_str = str(e)
-                            # Nếu gặp 503 (quá tải) hoặc 429 (hạn ngạch), đợi 2 giây rồi thử lại hoặc đổi model
-                            if "503" in error_str or "429" in error_str:
-                                time.sleep(2)
-                                continue
-                            else:
-                                break  # Lỗi khác thì chuyển luôn sang model kế tiếp
-                                
-                    if response_text:
-                        break  # Đã lấy được kết quả thành công, thoát vòng lặp
-                
-                if response_text:
-                    try:
-                        st.session_state['ai_result'] = json.loads(response_text)
-                        st.success("Tạo bài thành công!")
-                    except Exception as json_err:
-                        st.error(f"Lỗi cấu trúc dữ liệu JSON: {json_err}")
-                else:
-                    st.error(f"Máy chủ Google đang quá tải tạm thời: {last_error}")
-                    st.info("👉 Bạn hãy bấm lại nút một lần nữa sau vài giây nhé!")
+                # Thông tin phụ
+                sub_info = f"Nguồn: `{row.get('
