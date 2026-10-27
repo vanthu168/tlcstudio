@@ -222,7 +222,7 @@ if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
 
 show_values = [str(s) for s in df[col_show].dropna().unique() if str(s).strip() != ""]
 all_shows = ["Tất cả Show"] + show_values
-selected_show = st.sidebar.selectbox("Chọn Show:", all_shows)
+selected_show = st.sidebar.selectbox("Chọn Show:", all_shows, key="show_sidebar")
 
 filter_status = st.sidebar.radio(
     "Trạng thái kịch bản:",
@@ -266,6 +266,31 @@ page_input = st.sidebar.number_input(
 current_page = min(int(page_input), total_pages)
 page_start = (current_page - 1) * page_size
 page_df = filtered_df.iloc[page_start:page_start + page_size]
+
+# Lọc nhanh theo show (thêm ngoài lọc sidebar): hiển thị luôn ở khu vực chính
+# để khỏi phải mở sidebar, nhất là trên điện thoại. Bấm một nút sẽ đặt lại
+# đúng giá trị của lọc sidebar rồi chạy lại trang, nên hai chỗ luôn đồng bộ.
+st.markdown("🎬 **Lọc nhanh theo show:**")
+_short_show = {
+    "Tất cả Show": "Tất cả",
+    "90 Day Fiancé": "90 Day",
+    "Sister Wives": "Sister Wives",
+    "1000-Lb Sisters": "1000-Lb",
+    "Welcome to Plathville": "Plathville",
+    "Khác": "Khác",
+}
+_chip_shows = ["Tất cả Show"] + show_values
+for _r in range(0, len(_chip_shows), 3):
+    _cols = st.columns(3)
+    for _c, _show in enumerate(_chip_shows[_r:_r + 3]):
+        _label = _short_show.get(_show, _show)
+        if _show == selected_show:
+            _label = f"✅ {_label}"
+        with _cols[_c]:
+            if st.button(_label, key=f"chip_show_{_r + _c}", use_container_width=True):
+                st.session_state["show_sidebar"] = _show
+                st.session_state["page_num"] = 1
+                st.rerun()
 
 # 6. Giao diện hiển thị: 2 Cột
 col_left, col_right = st.columns([1, 1.25])
