@@ -360,13 +360,19 @@ filter_status = st.sidebar.radio(
 
 # Nút ẩn bài đã đăng: một nút bấm chuyển đổi (không phải bộ lọc radio),
 # để danh sách gọn lại khi làm việc với các bài chưa đăng. Mặc định BẬT
-# khi tải lại trang (phiên Streamlit mới): session_state chưa có khóa
-# "hide_posted" thì lấy True, nên nút hiện "Hiện lại bài đã đăng" ngay
-# từ đầu. Trong cùng một phiên, lựa chọn của người dùng vẫn giữ nguyên
-# khi đổi show/trang, và chỉ reset về mặc định bật khi tải lại trang.
-# Khi đang xem riêng "Chỉ bài đã đăng" thì nút ẩn tạm không áp dụng,
-# vì hai lựa chọn đó mâu thuẫn nhau.
-_hide_posted = st.session_state.get("hide_posted", True)
+# khi tải lại trang (phiên Streamlit mới): khóa "hide_posted" được ghi
+# thật vào session_state với True ngay lần đầu, chứ không chỉ lấy giá
+# trị mặc định cho nhãn nút. Lỗi cũ ở đây: nhãn nút hiện "Hiện lại"
+# nhưng bộ lọc lại đọc session_state.get("hide_posted") và nhận None
+# vì khóa chưa từng được ghi, nên bài đã đăng vẫn lọt vào danh sách,
+# kể cả ở lựa chọn "Chỉ bài đã có kịch bản" (bài đã đăng vốn cũng có
+# kịch bản nên vẫn qua bộ lọc kịch bản). Trong cùng một phiên, lựa
+# chọn của người dùng vẫn giữ nguyên khi đổi show/trang, và chỉ reset
+# về mặc định bật khi tải lại trang. Khi đang xem riêng "Chỉ bài đã
+# đăng" thì nút ẩn tạm không áp dụng, vì hai lựa chọn đó mâu thuẫn nhau.
+if "hide_posted" not in st.session_state:
+    st.session_state["hide_posted"] = True
+_hide_posted = st.session_state["hide_posted"]
 if st.sidebar.button(
     "👁️ Hiện lại bài đã đăng" if _hide_posted else "🙈 Ẩn bài đã đăng",
     key="btn_hide_posted",
@@ -402,7 +408,7 @@ elif filter_status == "Chỉ bài đã đăng":
 
 # Ẩn bài đã đăng (áp dụng sau bộ lọc trạng thái, trừ khi người dùng đang
 # xem riêng "Chỉ bài đã đăng" như đã ghi chú ở nút bấm).
-if st.session_state.get("hide_posted") and filter_status != "Chỉ bài đã đăng" and col_status:
+if _hide_posted and filter_status != "Chỉ bài đã đăng" and col_status:
     filtered_df = filtered_df[filtered_df[col_status].fillna("").astype(str).str.strip() != "Đã đăng"]
 
 if search_kw.strip() and col_title:
