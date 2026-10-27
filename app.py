@@ -201,6 +201,36 @@ def mark_posted(link):
         return True, "Đã ghi Đã đăng (không tìm thấy dòng nào khớp link, hãy kiểm tra lại link trong sheet)."
     return False, f"Apps Script báo lỗi: {data.get('error', 'không rõ')}"
 
+# Chạy script săn tin trên sheet qua cùng Apps Script web app (cùng URL/token
+# với nút Đã đăng, không cần Secrets mới). Apps Script chạy hàm sanTin_ rồi
+# trả về số tin mới thêm. Săn tin tải nhiều nguồn nên có thể mất 1-2 phút:
+# timeout 300 giây. Nếu quá thời gian mà script vẫn chạy trên Google thì
+# Dash báo lỗi kết nối, nhưng lần chạy đó có thể vẫn hoàn tất — kiểm tra
+# tab "Nhật ký" trong sheet sau 1-2 phút thay vì bấm săn tin thêm lần nữa.
+def run_hunt():
+    try:
+        url = st.secrets.get("SHEETS_WRITE_URL")
+        token = st.secrets.get("SHEETS_WRITE_TOKEN")
+    except Exception:
+        url, token = None, None
+    if not url or not token:
+        return False, "Chưa cấu hình SHEETS_WRITE_URL / SHEETS_WRITE_TOKEN trong Streamlit Secrets, nên chưa chạy săn tin được. Làm theo hướng dẫn thiết lập Apps Script rồi bấm lại."
+    payload = json.dumps({"token": token, "action": "sanTin"}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return False, f"Không gọi được Apps Script (nếu script vẫn đang chạy trên Google, kiểm tra tab Nhật ký trong sheet sau 1-2 phút thay vì bấm lại): {e}"
+    if data.get("ok"):
+        added = data.get("added")
+        errs = data.get("errors") or []
+        msg = f"Đã săn tin xong, thêm {added} tin mới." if added is not None else "Đã săn tin xong."
+        if errs:
+            msg += f" Có {len(errs)} nguồn lỗi (xem tab Nhật ký trong sheet)."
+        return True, msg
+    return False, f"Apps Script báo lỗi: {data.get('error', 'không rõ')}"
+
 # 4. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
 
@@ -237,9 +267,24 @@ st.divider()
 # 5. Sidebar bộ lọc
 st.sidebar.header("🔍 Bộ lọc tin")
 
+_hunt_notice = st.session_state.pop('hunt_notice', None)
+if _hunt_notice:
+    st.sidebar.success(f"✅ {_hunt_notice}")
+
 if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
+
+if st.sidebar.button("🔎 Săn tin ngay", use_container_width=True):
+    with st.spinner("Đang săn tin, có thể mất 1-2 phút, đừng bấm thêm lần nữa..."):
+        _ok, _msg = run_hunt()
+    if _ok:
+        st.session_state['hunt_notice'] = _msg
+        st.cache_data.clear()
+        st.rerun()
+    else:
+        st.sidebar.warning(_msg)
+st.sidebar.caption("Săn tin ngay chạy script trên sheet (tương đương menu Chạy ngay), rồi tải lại danh sách.")
 
 show_values = [str(s) for s in df[col_show].dropna().unique() if str(s).strip() != ""]
 all_shows = ["Tất cả Show"] + show_values
