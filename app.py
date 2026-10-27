@@ -15,6 +15,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# CSS tối ưu giao diện: gọn trên desktop, đỡ cuộn dài trên điện thoại.
+# Không thay đổi dữ liệu, thẻ hay nội dung kịch bản, chỉ thay đổi hiển thị.
+st.markdown(
+    """
+    <style>
+    .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    @media (max-width: 768px) {
+        .block-container { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .stButton button { padding: 0.5rem 0.75rem; font-size: 15px; }
+        [data-testid="stMetricValue"] { font-size: 1.3rem; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # 2. Khởi tạo Gemini Client (để phục vụ tính năng dịch)
 api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY"))
 client = genai.Client(api_key=api_key) if api_key else None
@@ -167,16 +183,33 @@ Văn bản cần dịch:
 # 4. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
 
-col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+# Mask "đã có kịch bản" tính một lần bằng vector hoá (cột M, index 12),
+# thay cho vòng lặp iterrows qua toàn bộ sheet mỗi lần tải lại trang.
+if len(df.columns) >= 13:
+    _m_col = df.iloc[:, 12].fillna("").astype(str).str.strip()
+    has_script_mask = _m_col.ne("") & (_m_col.str.lower() != "nan")
+else:
+    has_script_mask = pd.Series(False, index=df.index)
+if col_script and col_script in df.columns:
+    _s_col = df[col_script].fillna("").astype(str).str.strip()
+    has_script_mask = has_script_mask | (_s_col.ne("") & (_s_col.str.lower() != "nan"))
+
+col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
 total_news = len(df)
-has_script = sum(1 for _, r in df.iterrows() if get_script_content(r) != "")
+has_script = int(has_script_mask.sum())
 new_news = total_news - has_script
 sensitive_count = df[col_sensitive].dropna().count() if col_sensitive else 0
+# Tổng bình luận cũng tính vector hoá từ cột "Tương tác" (dạng "x điểm / y BL").
+total_comments = 0
+if col_interact:
+    _bl = df[col_interact].astype(str).str.extract(r"(\d+)\s*BL", expand=False)
+    total_comments = int(pd.to_numeric(_bl, errors="coerce").fillna(0).sum())
 
 col_m1.metric("Tổng số tin", total_news)
 col_m2.metric("✅ Đã có kịch bản", has_script)
 col_m3.metric("🆕 Chờ kịch bản", new_news)
 col_m4.metric("⚠️ Nhạy cảm", sensitive_count)
+col_m5.metric("💬 Tổng bình luận", total_comments)
 
 st.divider()
 
@@ -198,6 +231,8 @@ filter_status = st.sidebar.radio(
 )
 
 search_kw = st.sidebar.text_input("Tìm kiếm theo tiêu đề:")
+compact_mode = st.sidebar.checkbox("📱 Chế độ gọn (danh sách)", value=False)
+page_size = st.sidebar.selectbox("Số bài mỗi trang:", [10, 20, 50], index=1)
 
 filtered_df = df.copy()
 
@@ -205,54 +240,81 @@ if selected_show != "Tất cả Show":
     filtered_df = filtered_df[filtered_df[col_show] == selected_show]
 
 if filter_status == "Chỉ bài đã có kịch bản":
-    filtered_df = filtered_df[filtered_df.apply(lambda r: get_script_content(r) != "", axis=1)]
+    filtered_df = filtered_df[has_script_mask.loc[filtered_df.index]]
 elif filter_status == "Chỉ bài mới (chưa có)":
-    filtered_df = filtered_df[filtered_df.apply(lambda r: get_script_content(r) == "", axis=1)]
+    filtered_df = filtered_df[~has_script_mask.loc[filtered_df.index]]
 
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
 
+if 'translations_cache' not in st.session_state:
+    st.session_state['translations_cache'] = {}
 if 'current_row' not in st.session_state and not filtered_df.empty:
     first_row = filtered_df.iloc[0]
     st.session_state['current_row'] = first_row
+    st.session_state['current_row_idx'] = first_row.name
     st.session_state['current_script'] = get_script_content(first_row)
-    st.session_state['translated_script'] = None
+    st.session_state['translated_script'] = st.session_state['translations_cache'].get(first_row.name)
+
+# Phân trang: chỉ render số bài của trang hiện tại, thay vì render hết
+# danh sách đã lọc (nguyên nhân chính gây lag khi sheet có 200+ dòng).
+import math
+total_pages = max(1, math.ceil(len(filtered_df) / page_size)) if not filtered_df.empty else 1
+page_input = st.sidebar.number_input(
+    "Trang:", min_value=1, max_value=total_pages, value=1, step=1, key="page_num"
+)
+current_page = min(int(page_input), total_pages)
+page_start = (current_page - 1) * page_size
+page_df = filtered_df.iloc[page_start:page_start + page_size]
 
 # 6. Giao diện hiển thị: 2 Cột
 col_left, col_right = st.columns([1, 1.25])
 
 with col_left:
-    st.subheader(f"📋 Danh sách tin ({len(filtered_df)})")
-    
+    st.subheader(f"📋 Danh sách tin ({len(filtered_df)}) — Trang {current_page}/{total_pages}")
+    if not filtered_df.empty:
+        st.caption(f"Đang hiển thị {len(page_df)} bài (từ bài {page_start + 1} đến {page_start + len(page_df)}). Đổi trang ở sidebar.")
+
     if filtered_df.empty:
         st.info("Không có tin nào phù hợp với bộ lọc.")
     else:
-        for idx, row in filtered_df.iterrows():
+        current_idx = st.session_state.get('current_row_idx')
+        for idx, row in page_df.iterrows():
             script_text = get_script_content(row)
             is_ready = bool(script_text)
-            
+
             with st.container(border=True):
                 badge = "🟢 Đã có kịch bản" if is_ready else "⚪ Mới"
                 show_val = str(row.get(col_show, ''))
                 title_val = str(row.get(col_title, ''))
-                
-                st.markdown(f"**[{show_val}]** {badge}")
+                viewing = " 👈 Đang xem" if idx == current_idx else ""
+
+                st.markdown(f"**[{show_val}]** {badge}{viewing}")
                 st.write(title_val)
-                
-                source_val = str(row.get(col_source, 'N/A'))
-                info_line = f"Nguồn: `{source_val}`"
-                if col_interact and pd.notna(row.get(col_interact)):
-                    info_line += f" | 🔥 {row.get(col_interact)}"
-                st.caption(info_line)
-                
+
+                if not compact_mode:
+                    source_val = str(row.get(col_source, 'N/A'))
+                    info_line = f"Nguồn: `{source_val}`"
+                    if col_interact and pd.notna(row.get(col_interact)):
+                        info_line += f" | 🔥 {row.get(col_interact)}"
+                    st.caption(info_line)
+                elif col_interact and pd.notna(row.get(col_interact)):
+                    st.caption(f"🔥 {row.get(col_interact)}")
+
                 if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
-                    st.warning(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
-                
+                    if compact_mode:
+                        st.caption(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
+                    else:
+                        st.warning(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
+
                 btn_name = "👁️ Xem kịch bản & Copy" if is_ready else "📝 Xem thông tin"
                 if st.button(btn_name, key=f"btn_{idx}", use_container_width=True):
                     st.session_state['current_row'] = row
+                    st.session_state['current_row_idx'] = idx
                     st.session_state['current_script'] = script_text
-                    st.session_state['translated_script'] = None  # Reset bản dịch khi chọn tin khác
+                    # Lấy lại bản dịch đã dịch trước đó của đúng bài này (nếu có),
+                    # thay vì reset mất và phải dịch lại từ đầu.
+                    st.session_state['translated_script'] = st.session_state['translations_cache'].get(idx)
 
 with col_right:
     st.subheader("📑 Kịch bản Facebook (Copy nhanh)")
@@ -271,6 +333,7 @@ with col_right:
                     with st.spinner("Gemini đang dịch sang tiếng Việt chuẩn drama..."):
                         translated = translate_to_vietnamese(raw_script)
                         st.session_state['translated_script'] = translated
+                        st.session_state['translations_cache'][st.session_state.get('current_row_idx')] = translated
             
             with c_trans2:
                 # Chọn ngôn ngữ hiển thị
@@ -286,6 +349,16 @@ with col_right:
             parsed = parse_script(content_to_show)
             copy_button("📋 Copy toàn văn", content_to_show, "copy-full")
 
+            st.caption("⚡ Copy nhanh (không cần chuyển tab):")
+            q1, q2 = st.columns(2)
+            with q1:
+                copy_button("📋 Copy Option 1", parsed["witty"], "copy-quick-witty")
+            with q2:
+                if parsed["translation"]:
+                    copy_button("📋 Copy Bản dịch", parsed["translation"], "copy-quick-translation")
+                else:
+                    st.caption("Chưa có bản dịch trong cột M.")
+
             tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
                 "🔥 Sarcastic & Witty",
                 "🗣️ Gossip & Viral",
@@ -299,17 +372,17 @@ with col_right:
             with tab1:
                 st.caption(f"Phong cách Sarcastic ({chosen_lang}):")
                 copy_button("📋 Copy Sarcastic", parsed["witty"], "copy-witty")
-                st.text_area("Sarcastic:", parsed["witty"], height=280)
+                st.text_area("Sarcastic:", parsed["witty"], height=240)
 
             with tab2:
                 st.caption(f"Phong cách Gossip ({chosen_lang}):")
                 copy_button("📋 Copy Gossip", parsed["gossip"], "copy-gossip")
-                st.text_area("Gossip:", parsed["gossip"], height=280)
+                st.text_area("Gossip:", parsed["gossip"], height=240)
 
             with tab3:
                 st.caption(f"Phong cách Analytical ({chosen_lang}):")
                 copy_button("📋 Copy Analytical", parsed["analytical"], "copy-analytical")
-                st.text_area("Analytical:", parsed["analytical"], height=280)
+                st.text_area("Analytical:", parsed["analytical"], height=240)
 
             with tab4:
                 st.caption(f"Bình luận mồi ({chosen_lang}):")
@@ -323,7 +396,7 @@ with col_right:
                 st.caption("Bản dịch tiếng Việt (ghi trong cột M):")
                 if parsed["translation"]:
                     copy_button("📋 Copy Bản dịch", parsed["translation"], "copy-translation")
-                    st.text_area("Bản dịch:", parsed["translation"], height=280)
+                    st.text_area("Bản dịch:", parsed["translation"], height=240)
                 else:
                     st.info("Chưa có bản dịch ghi trong cột M cho bài này (các bài mới sẽ có phần [BẢN DỊCH TIẾNG VIỆT] trong cột M).")
 
@@ -337,7 +410,7 @@ with col_right:
 
             with tab7:
                 copy_button("📋 Copy toàn văn", content_to_show, "copy-full-tab")
-                st.text_area("Toàn văn nội dung:", content_to_show, height=350)
+                st.text_area("Toàn văn nội dung:", content_to_show, height=300)
         else:
             st.warning("⚠️ Dòng này chưa có nội dung kịch bản trong Google Sheet.")
             st.info("👉 Mở Google Sheet, click dòng này và bấm '🤖 TLC AI Content > 🚀 Tạo kịch bản'.")
