@@ -19,6 +19,25 @@ st.markdown(
     """
     <style>
     .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    /* Ghim panel kịch bản bên phải khi cuộn danh sách trên PC: cột phải
+       (cột thứ 2 của khối 2 cột chính) dính ở đầu màn hình và tự cuộn
+       nội dung bên trong nếu nó cao hơn màn hình, nên bấm tin ở cuối
+       danh sách cũng thấy kịch bản ngay mà không phải kéo lên lại.
+       Chỉ áp dụng trên màn hình rộng; trên điện thoại 2 cột xếp chồng
+       lên nhau nên không ghim để khỏi che danh sách. Các khối ngang ngắn
+       khác (thống kê, nút copy nhanh...) không bị ảnh hưởng vì khối cha
+       của chúng thấp, sticky không có chỗ để phát huy tác dụng. */
+    @media (min-width: 769px) {
+        div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-of-type(2),
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+            position: sticky;
+            top: 2rem;
+            align-self: flex-start;
+            max-height: calc(100vh - 4rem);
+            overflow-y: auto;
+            padding-right: 0.25rem;
+        }
+    }
     @media (max-width: 768px) {
         .block-container { padding-left: 0.75rem; padding-right: 0.75rem; }
         .stButton button { padding: 0.5rem 0.75rem; font-size: 15px; }
