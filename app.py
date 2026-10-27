@@ -85,6 +85,7 @@ col_status = find_col(df.columns, "Trạng thái")
 col_interact = find_col(df.columns, "Tương tác")
 col_sensitive = find_col(df.columns, "Nhạy cảm")
 col_script = find_col(df.columns, "Kịch bản")
+col_posted = find_col(df.columns, "Đăng lúc")
 
 # Hàm lấy nội dung kịch bản (Ưu tiên Cột M / cột số 13, index 12)
 def get_script_content(row):
@@ -399,7 +400,7 @@ with col_left:
                 viewing = " 👈 Đang xem" if idx == current_idx else ""
 
                 # Thẻ tin 2 dòng, áp dụng cho cả chế độ gọn và đầy đủ:
-                # dòng 1: Show - Trạng thái - Đánh giá (tương tác),
+                # dòng 1: Show - Trạng thái - Đánh giá (tương tác) - Giờ đăng (cột G),
                 # dòng 2: Tiêu đề.
                 _is_sensitive = bool(
                     col_sensitive and pd.notna(row.get(col_sensitive))
@@ -408,6 +409,13 @@ with col_left:
                 _line1_parts = [f"[{show_val}]", badge]
                 if col_interact and pd.notna(row.get(col_interact)):
                     _line1_parts.append(f"🔥 {row.get(col_interact)}")
+                if col_posted and pd.notna(row.get(col_posted)):
+                    _posted_val = str(row.get(col_posted)).strip()
+                    # Cột G lưu dạng chữ "yyyy-MM-dd HH:mm"; nếu lỡ có giây thì bỏ ":00" cuối.
+                    if len(_posted_val) == 19 and _posted_val.endswith(":00"):
+                        _posted_val = _posted_val[:16]
+                    if _posted_val and _posted_val.lower() != "nan":
+                        _line1_parts.append(f"🕐 {_posted_val}")
                 _line1 = " - ".join(_line1_parts) + viewing
                 if compact_mode and _is_sensitive:
                     # Chế độ gọn: chỉ thêm icon cảnh báo vào dòng 1 để giữ đúng 2 dòng.
