@@ -281,23 +281,26 @@ with col_left:
                 title_val = str(row.get(col_title, ''))
                 viewing = " 👈 Đang xem" if idx == current_idx else ""
 
-                if compact_mode:
-                    # Chế độ gọn: show + trạng thái + tiêu đề gộp 1 dòng,
-                    # bỏ dòng nguồn riêng, chỉ giữ tương tác ở dòng nhỏ.
-                    st.markdown(f"**[{show_val}]** {badge}{viewing} {title_val}")
-                    if col_interact and pd.notna(row.get(col_interact)):
-                        st.caption(f"🔥 {row.get(col_interact)}")
-                    if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
-                        st.caption(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
-                else:
-                    st.markdown(f"**[{show_val}]** {badge}{viewing}")
-                    st.write(title_val)
+                # Thẻ tin 2 dòng, áp dụng cho cả chế độ gọn và đầy đủ:
+                # dòng 1: Show - Trạng thái - Đánh giá (tương tác),
+                # dòng 2: Tiêu đề.
+                _is_sensitive = bool(
+                    col_sensitive and pd.notna(row.get(col_sensitive))
+                    and str(row.get(col_sensitive)).strip() != ""
+                )
+                _line1_parts = [f"[{show_val}]", badge]
+                if col_interact and pd.notna(row.get(col_interact)):
+                    _line1_parts.append(f"🔥 {row.get(col_interact)}")
+                _line1 = " - ".join(_line1_parts) + viewing
+                if compact_mode and _is_sensitive:
+                    # Chế độ gọn: chỉ thêm icon cảnh báo vào dòng 1 để giữ đúng 2 dòng.
+                    _line1 += " ⚠️"
+                st.markdown(f"**{_line1}**")
+                st.write(title_val)
+                if not compact_mode:
                     source_val = str(row.get(col_source, 'N/A'))
-                    info_line = f"Nguồn: `{source_val}`"
-                    if col_interact and pd.notna(row.get(col_interact)):
-                        info_line += f" | 🔥 {row.get(col_interact)}"
-                    st.caption(info_line)
-                    if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
+                    st.caption(f"Nguồn: `{source_val}`")
+                    if _is_sensitive:
                         st.warning(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
 
                 # Nút xem bài gốc đã chuyển sang đây, nằm cạnh nút xem kịch bản.
