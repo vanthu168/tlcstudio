@@ -54,18 +54,19 @@ col_interact = find_col(df.columns, "Tương tác")
 col_sensitive = find_col(df.columns, "Nhạy cảm")
 col_script = find_col(df.columns, "Kịch bản")
 
-# Hàm lấy kịch bản từ Cột N hoặc Cột M
+# Hàm lấy nội dung kịch bản (Ưu tiên Cột M / cột số 13, index 12)
 def get_script_content(row):
-    if len(row) >= 14 and pd.notna(row.iloc[13]):
-        val = str(row.iloc[13]).strip()
+    # Kiểm tra Cột M (Cột số 13, trong python index là 12)
+    if len(row) >= 13 and pd.notna(row.iloc[12]):
+        val = str(row.iloc[12]).strip()
         if val != "" and val.lower() != "nan":
             return val
+    # Dự phòng tìm theo tên cột "Kịch bản"
     if col_script and col_script in row and pd.notna(row[col_script]):
         val = str(row[col_script]).strip()
         if val != "" and val.lower() != "nan":
             return val
     return ""
-
 # Hàm bóc tách kịch bản
 def parse_script(raw_text):
     if not raw_text:
