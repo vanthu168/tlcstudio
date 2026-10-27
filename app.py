@@ -211,6 +211,16 @@ if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
 
 show_values = [str(s) for s in df[col_show].dropna().unique() if str(s).strip() != ""]
 all_shows = ["Tất cả Show"] + show_values
+# Áp dụng lựa chọn show/trang đang chờ từ nút chip (xem nút chip bên dưới).
+# Bắt buộc phải gán ở đây, trước khi các widget show_sidebar và page_num
+# được vẽ, nếu không Streamlit báo lỗi WidgetAlreadyInstantiated.
+# Show chờ phải còn trong danh sách show hiện tại mới được áp dụng.
+if "pending_show" in st.session_state:
+    _pending_show = st.session_state.pop("pending_show")
+    if _pending_show in all_shows:
+        st.session_state["show_sidebar"] = _pending_show
+if "pending_page" in st.session_state:
+    st.session_state["page_num"] = st.session_state.pop("pending_page")
 selected_show = st.sidebar.selectbox("Chọn Show:", all_shows, key="show_sidebar")
 
 filter_status = st.sidebar.radio(
@@ -274,8 +284,8 @@ for _r in range(0, len(_chip_shows), 3):
             _label = f"✅ {_label}"
         with _cols[_c]:
             if st.button(_label, key=f"chip_show_{_r + _c}", use_container_width=True):
-                st.session_state["show_sidebar"] = _show
-                st.session_state["page_num"] = 1
+                st.session_state["pending_show"] = _show
+                st.session_state["pending_page"] = 1
                 st.rerun()
 
 # 6. Giao diện hiển thị: 2 Cột
