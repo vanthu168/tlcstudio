@@ -55,8 +55,8 @@ def parse_script(raw_text):
     
     p_witty = re.search(r'\[OPTION 1:.*?\](.*?)(?=\[OPTION 2:|$)', raw_text, re.DOTALL | re.IGNORECASE)
     p_gossip = re.search(r'\[OPTION 2:.*?\](.*?)(?=\[OPTION 3:|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=[SEED COMMENTS]|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_comm = re.search(r'[SEED COMMENTS](.*)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=\[SEED COMMENTS\]|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_comm = re.search(r'\[SEED COMMENTS\](.*)', raw_text, re.DOTALL | re.IGNORECASE)
     
     sections["witty"] = p_witty.group(1).strip() if p_witty else ""
     sections["gossip"] = p_gossip.group(1).strip() if p_gossip else ""
@@ -189,4 +189,11 @@ with col_right:
                 st.text_area("Analytical:", parsed["analytical"], height=280)
                 
             with tab4:
-                st.text_area("Seed Comments
+                st.text_area("Seed Comments:", parsed["comments"], height=220)
+                    
+            with tab5:
+                st.text_area("Noi dung goc tu Cot N:", raw_script, height=350)
+        else:
+            st.warning("Dong nay chua co kich ban trong Google Sheet.")
+    else:
+        st.info("Chon mot tin o danh sach ben trai de xem kich ban.")
