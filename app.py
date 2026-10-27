@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import re
+import os
+from google import genai
+from google.genai import types
 
 # 1. Cấu hình giao diện Streamlit
 st.set_page_config(
@@ -10,7 +13,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Kết nối Google Sheet qua Sheet ID và GID tab "Hôm nay"
+# 2. Khởi tạo Gemini Client (để phục vụ tính năng dịch)
+api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY"))
+client = genai.Client(api_key=api_key) if api_key else None
+
+# 3. Kết nối Google Sheet qua Sheet ID và GID tab "Hôm nay"
 SHEET_ID = "1MNbKOlFWj4NqDn9jaO44bWZLz9WPUKivgF0Uz_18mHc"
 TAB_GID = "2042307707"
 
@@ -47,7 +54,7 @@ col_interact = find_col(df.columns, "Tương tác")
 col_sensitive = find_col(df.columns, "Nhạy cảm")
 col_script = find_col(df.columns, "Kịch bản")
 
-# Hàm lấy nội dung kịch bản (ưu tiên Cột N / cột 14, fallback về cột Kịch bản)
+# Hàm lấy kịch bản từ Cột N hoặc Cột M
 def get_script_content(row):
     if len(row) >= 14 and pd.notna(row.iloc[13]):
         val = str(row.iloc[13]).strip()
@@ -59,7 +66,7 @@ def get_script_content(row):
             return val
     return ""
 
-# Hàm bóc tách kịch bản thành từng tone
+# Hàm bóc tách kịch bản
 def parse_script(raw_text):
     if not raw_text:
         return None
@@ -78,7 +85,33 @@ def parse_script(raw_text):
         sections["witty"] = raw_text
     return sections
 
-# 3. Tiêu đề ứng dụng & Thống kê
+# Hàm gọi Gemini dịch sang tiếng Việt chuẩn văn phong hóng hớt / drama
+def translate_to_vietnamese(text_en):
+    if not client:
+        return "⚠️ Chưa cấu hình GEMINI_API_KEY trong Secrets của Streamlit."
+    
+    prompt = f"""
+    Bạn là biên dịch viên nội dung chuyên về Showbiz và Reality TV TLC.
+    Hãy dịch toàn bộ nội dung kịch bản tiếng Anh sau đây sang Tiếng Việt.
+    
+    YÊU CẦU:
+    1. Giữ nguyên toàn bộ cấu trúc các thẻ [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
+    2. Dịch tự nhiên, cuốn hút, chuẩn văn phong 'hóng drama' của mạng xã hội Việt Nam (bản Sarcastic thì mỉa mai hài hước, bản Gossip thì sôi nổi, bản Analytical thì sâu sắc).
+    3. Không dịch cứng nhắc kiểu từ điển hay máy dịch.
+    
+    Nội dung cần dịch:
+    {text_en}
+    """
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        return f"Lỗi khi dịch: {e}"
+
+# 4. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
@@ -94,7 +127,7 @@ col_m4.metric("⚠️ Nhạy cảm", sensitive_count)
 
 st.divider()
 
-# 4. Sidebar bộ lọc
+# 5. Sidebar bộ lọc
 st.sidebar.header("🔍 Bộ lọc tin")
 
 if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
@@ -126,13 +159,13 @@ elif filter_status == "Chỉ bài mới (chưa có)":
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
 
-# Tự động chọn dòng đầu tiên nếu chưa chọn dòng nào
 if 'current_row' not in st.session_state and not filtered_df.empty:
     first_row = filtered_df.iloc[0]
     st.session_state['current_row'] = first_row
     st.session_state['current_script'] = get_script_content(first_row)
+    st.session_state['translated_script'] = None
 
-# 5. Hiển thị danh sách & Chi tiết kịch bản
+# 6. Giao diện hiển thị: 2 Cột
 col_left, col_right = st.columns([1, 1.25])
 
 with col_left:
@@ -166,6 +199,7 @@ with col_left:
                 if st.button(btn_name, key=f"btn_{idx}", use_container_width=True):
                     st.session_state['current_row'] = row
                     st.session_state['current_script'] = script_text
+                    st.session_state['translated_script'] = None  # Reset bản dịch khi chọn tin khác
 
 with col_right:
     st.subheader("📑 Kịch bản Facebook (Copy nhanh)")
@@ -177,37 +211,56 @@ with col_right:
         st.info(f"**[{cur.get(col_show, '')}]** {cur.get(col_title, '')}")
         
         if raw_script:
-            parsed = parse_script(raw_script)
+            # THANH ĐIỀU KHIỂN DỊCH
+            c_trans1, c_trans2 = st.columns([1, 1])
+            with c_trans1:
+                if st.button("🇻🇳 Dịch sang Tiếng Việt", use_container_width=True):
+                    with st.spinner("Gemini đang dịch sang tiếng Việt chuẩn drama..."):
+                        translated = translate_to_vietnamese(raw_script)
+                        st.session_state['translated_script'] = translated
+            
+            with c_trans2:
+                # Chọn ngôn ngữ hiển thị
+                has_trans = bool(st.session_state.get('translated_script'))
+                lang_options = ["🇺🇸 Tiếng Anh (Gốc)", "🇻🇳 Tiếng Việt"] if has_trans else ["🇺🇸 Tiếng Anh (Gốc)"]
+                chosen_lang = st.radio("Ngôn ngữ hiển thị:", lang_options, horizontal=True)
+
+            # Chọn nội dung để hiển thị
+            content_to_show = raw_script
+            if chosen_lang == "🇻🇳 Tiếng Việt" and st.session_state.get('translated_script'):
+                content_to_show = st.session_state['translated_script']
+
+            parsed = parse_script(content_to_show)
             
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "🔥 Sarcastic & Witty", 
                 "🗣️ Gossip & Viral", 
                 "🧐 Analytical", 
                 "💬 Seed Comments",
-                "📄 Toàn văn Cột N"
+                "📄 Toàn văn"
             ])
             
             with tab1:
-                st.caption("Bấm chuột vào ô để sao chép bài đăng Sarcastic:")
+                st.caption(f"Phong cách Sarcastic ({chosen_lang}):")
                 st.text_area("Sarcastic:", parsed["witty"], height=280)
             
             with tab2:
-                st.caption("Bấm chuột vào ô để sao chép bài đăng Gossip kéo tương tác:")
+                st.caption(f"Phong cách Gossip ({chosen_lang}):")
                 st.text_area("Gossip:", parsed["gossip"], height=280)
                 
             with tab3:
-                st.caption("Góc nhìn phân tích tâm lý khách quan:")
+                st.caption(f"Phong cách Analytical ({chosen_lang}):")
                 st.text_area("Analytical:", parsed["analytical"], height=280)
                 
             with tab4:
-                st.caption("Bình luận mồi thả dưới bài:")
+                st.caption(f"Bình luận mồi ({chosen_lang}):")
                 if parsed["comments"]:
                     st.text_area("Seed comments:", parsed["comments"], height=220)
                 else:
                     st.info("Chưa có danh sách bình luận mồi riêng.")
                     
             with tab5:
-                st.text_area("Toàn văn nội dung gốc từ Cột N:", raw_script, height=350)
+                st.text_area("Toàn văn nội dung:", content_to_show, height=350)
         else:
             st.warning("⚠️ Dòng này chưa có nội dung kịch bản trong Google Sheet.")
             st.info("👉 Mở Google Sheet, click dòng này và bấm '🤖 TLC AI Content > 🚀 Tạo kịch bản'.")
