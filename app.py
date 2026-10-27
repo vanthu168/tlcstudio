@@ -94,9 +94,8 @@ def translate_to_vietnamese(text_en):
   Hãy đóng vai trò như Google Dịch (Google Translate). Hãy dịch toàn bộ văn bản tiếng Anh dưới đây sang Tiếng Việt một cách trực tiếp, chuẩn xác và phổ thông nhất.
 
 QUY TẮC:
-1. Dịch trung tính, tự nhiên, sát nghĩa đen thông thường như Google Translate.
-2. Không thêm từ lóng, không phóng tác, không tự sáng tác thêm ngữ cảnh hay drama.
-3. Giữ nguyên cấu trúc các thẻ phân đoạn trong ngoặc vuông: [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
+1. Dịch trung tính, tự nhiên, thông thường như Google Translate.
+2. Giữ nguyên cấu trúc các thẻ phân đoạn trong ngoặc vuông: [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
 
 Văn bản cần dịch:
 {text_en}
