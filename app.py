@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import html
 import os
 import json
 import streamlit.components.v1 as components
@@ -332,14 +333,33 @@ with col_left:
                     else:
                         st.warning(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
 
+                # Nút xem bài gốc đã chuyển sang đây, nằm cạnh nút xem kịch bản.
+                # Dùng thẻ <a> thay cho link_button để khỏi trùng widget khi
+                # lặp qua nhiều thẻ, và chỉ chấp nhận link http/https.
                 btn_name = "👁️ Xem kịch bản & Copy" if is_ready else "📝 Xem thông tin"
-                if st.button(btn_name, key=f"btn_{idx}", use_container_width=True):
-                    st.session_state['current_row'] = row
-                    st.session_state['current_row_idx'] = idx
-                    st.session_state['current_script'] = script_text
-                    # Lấy lại bản dịch đã dịch trước đó của đúng bài này (nếu có),
-                    # thay vì reset mất và phải dịch lại từ đầu.
-                    st.session_state['translated_script'] = st.session_state['translations_cache'].get(idx)
+                _b1, _b2 = st.columns([2, 1])
+                with _b1:
+                    if st.button(btn_name, key=f"btn_{idx}", use_container_width=True):
+                        st.session_state['current_row'] = row
+                        st.session_state['current_row_idx'] = idx
+                        st.session_state['current_script'] = script_text
+                        # Lấy lại bản dịch đã dịch trước đó của đúng bài này (nếu có),
+                        # thay vì reset mất và phải dịch lại từ đầu.
+                        st.session_state['translated_script'] = st.session_state['translations_cache'].get(idx)
+                with _b2:
+                    _link = row.get(col_link) if col_link else None
+                    if pd.notna(_link) and str(_link).strip().startswith(("http://", "https://")):
+                        _safe = html.escape(str(_link).strip(), quote=True)
+                        st.markdown(
+                            f'<a href="{_safe}" target="_blank" rel="noopener" '
+                            'style="display:block;text-align:center;padding:8px 4px;'
+                            'border:1px solid #ccc;border-radius:8px;'
+                            'text-decoration:none;color:inherit;font-size:14px;">'
+                            "🌐 Bài gốc</a>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption("Không có link")
 
 with col_right:
     st.subheader("📑 Kịch bản Facebook (Copy nhanh)")
@@ -440,10 +460,8 @@ with col_right:
             st.warning("⚠️ Dòng này chưa có nội dung kịch bản trong Google Sheet.")
             st.info("👉 Mở Google Sheet, click dòng này và bấm '🤖 TLC AI Content > 🚀 Tạo kịch bản'.")
             
-        with st.expander("🔗 Xem nguồn & link bài gốc", expanded=False):
+        with st.expander("📌 Nguồn bài viết", expanded=False):
             st.write(f"**Nguồn:** {cur.get(col_source, '')}")
-            link_val = cur.get(col_link) if col_link else None
-            if pd.notna(link_val) and str(link_val).startswith("http"):
-                st.link_button("🌐 Mở link bài viết gốc", str(link_val))
+            st.caption("Nút xem bài gốc đã chuyển sang thẻ tin ở danh sách bên trái.")
     else:
         st.info("👈 Chọn một tin ở danh sách bên trái để xem nội dung.")
