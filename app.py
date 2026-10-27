@@ -73,16 +73,18 @@ def get_script_content(row):
 def parse_script(raw_text):
     if not raw_text:
         return None
-    sections = {"witty": "", "gossip": "", "analytical": "", "comments": ""}
+    sections = {"witty": "", "gossip": "", "analytical": "", "comments": "", "image": ""}
     p_witty = re.search(r'\[OPTION 1:.*?\](.*?)(?=\[OPTION 2:|$)', raw_text, re.DOTALL | re.IGNORECASE)
     p_gossip = re.search(r'\[OPTION 2:.*?\](.*?)(?=\[OPTION 3:|$)', raw_text, re.DOTALL | re.IGNORECASE)
     p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=\[SEED COMMENTS\]|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_comm = re.search(r'\[SEED COMMENTS\](.*)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_comm = re.search(r'\[SEED COMMENTS\](.*?)(?=\[GỢI Ý ẢNH\]|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_image = re.search(r'\[GỢI Ý ẢNH\](.*)', raw_text, re.DOTALL | re.IGNORECASE)
     
     sections["witty"] = p_witty.group(1).strip() if p_witty else ""
     sections["gossip"] = p_gossip.group(1).strip() if p_gossip else ""
     sections["analytical"] = p_anal.group(1).strip() if p_anal else ""
     sections["comments"] = p_comm.group(1).strip() if p_comm else ""
+    sections["image"] = p_image.group(1).strip() if p_image else ""
     
     if not any([sections["witty"], sections["gossip"], sections["analytical"]]):
         sections["witty"] = raw_text
@@ -146,7 +148,7 @@ def translate_to_vietnamese(text_en):
 
 QUY TẮC:
 1. Dịch trung tính, tự nhiên, thông thường như Google Translate.
-2. Giữ nguyên cấu trúc các thẻ phân đoạn trong ngoặc vuông: [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
+2. Giữ nguyên cấu trúc các thẻ phân đoạn trong ngoặc vuông: [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS], [GỢI Ý ẢNH].
 
 Văn bản cần dịch:
 {text_en}
@@ -282,11 +284,12 @@ with col_right:
             parsed = parse_script(content_to_show)
             copy_button("📋 Copy toàn văn", content_to_show, "copy-full")
 
-            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
                 "🔥 Sarcastic & Witty", 
                 "🗣️ Gossip & Viral", 
                 "🧐 Analytical", 
                 "💬 Seed Comments",
+                "🖼️ Gợi ý ảnh",
                 "📄 Toàn văn"
             ])
             
@@ -314,6 +317,14 @@ with col_right:
                     st.info("Chưa có danh sách bình luận mồi riêng.")
 
             with tab5:
+                st.caption(f"Gợi ý ảnh ({chosen_lang}):")
+                if parsed["image"]:
+                    copy_button("📋 Copy Gợi ý ảnh", parsed["image"], "copy-image")
+                    st.text_area("Gợi ý ảnh:", parsed["image"], height=220)
+                else:
+                    st.info("Chưa có gợi ý ảnh cho bài này (các bài mới sẽ có phần [GỢI Ý ẢNH] trong cột M).")
+
+            with tab6:
                 copy_button("📋 Copy toàn văn", content_to_show, "copy-full-tab")
                 st.text_area("Toàn văn nội dung:", content_to_show, height=350)
         else:
