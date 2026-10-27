@@ -85,27 +85,32 @@ def parse_script(raw_text):
         sections["witty"] = raw_text
     return sections
 
-# Hàm gọi Gemini dịch sang tiếng Việt chuẩn văn phong hóng hớt / drama
+# Hàm gọi Gemini dịch sát nghĩa nhất theo nguyên bản
 def translate_to_vietnamese(text_en):
     if not client:
         return "⚠️ Chưa cấu hình GEMINI_API_KEY trong Secrets của Streamlit."
     
     prompt = f"""
-    Bạn là biên dịch viên nội dung chuyên về Showbiz và Reality TV TLC.
-    Hãy dịch toàn bộ nội dung kịch bản tiếng Anh sau đây sang Tiếng Việt.
-    
-    YÊU CẦU:
-    1. Giữ nguyên toàn bộ cấu trúc các thẻ [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
-    2. Dịch tự nhiên, cuốn hút, chuẩn văn phong 'hóng drama' của mạng xã hội Việt Nam (bản Sarcastic thì mỉa mai hài hước, bản Gossip thì sôi nổi, bản Analytical thì sâu sắc).
-    3. Không dịch cứng nhắc kiểu từ điển hay máy dịch.
-    
-    Nội dung cần dịch:
-    {text_en}
-    """
+Bạn là một dịch giả chuyên nghiệp. Hãy dịch toàn bộ nội dung kịch bản tiếng Anh sau đây sang Tiếng Việt theo tiêu chuẩn SÁT NGHĨA NHẤT (Faithful & Literal Translation).
+
+QUY TẮC DỊCH THUẬT:
+1. Sát nghĩa từng câu chữ: Bám sát cấu trúc ngữ pháp và ý tứ của câu gốc. Truyền tải chính xác 100% nội dung, số liệu, sự việc; tuyệt đối không phóng tác, không tự ý thêm bớt ý, không chèn từ lóng không có trong bản gốc.
+2. Giữ nguyên sắc thái gốc: 
+   - Phần Sarcastic: Dịch chuẩn xác sự mỉa mai/châm biếm của tác giả gốc.
+   - Phần Gossip / Analytical: Dịch đúng nhận định, lập luận khách quan theo nguyên tác.
+3. Giữ nguyên tên riêng & thực thể: Giữ nguyên tên các nhân vật (Kody, Meri, Christine, Stephen...), tên show (90 Day Fiancé, Sister Wives, TLC...).
+4. Giữ nguyên định dạng: Giữ nguyên cấu trúc các thẻ phân đoạn [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
+
+Nội dung cần dịch:
+{text_en}
+"""
     try:
         response = client.models.generate_content(
             model='gemini-2.0-flash',
-            contents=prompt
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.1  # Giữ nhiệt độ thấp để bản dịch bám sát nguyên gốc tuyệt đối
+            )
         )
         return response.text
     except Exception as e:
