@@ -2,11 +2,8 @@ import streamlit as st
 import pandas as pd
 import re
 import html
-import os
 import json
 import streamlit.components.v1 as components
-from google import genai
-from google.genai import types
 
 # 1. Cấu hình giao diện Streamlit
 st.set_page_config(
@@ -32,11 +29,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 2. Khởi tạo Gemini Client (để phục vụ tính năng dịch)
-api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY"))
-client = genai.Client(api_key=api_key) if api_key else None
-
-# 3. Kết nối Google Sheet qua Sheet ID và GID tab "Hôm nay"
+# 2. Kết nối Google Sheet qua Sheet ID và GID tab "Hôm nay"
 SHEET_ID = "1MNbKOlFWj4NqDn9jaO44bWZLz9WPUKivgF0Uz_18mHc"
 TAB_GID = "2042307707"
 
@@ -157,30 +150,6 @@ def copy_button(label, text, button_id):
         scrolling=False,
     )
 
-# Hàm gọi Gemini dịch sang tiếng Việt chuẩn văn phong hóng hớt / drama
-def translate_to_vietnamese(text_en):
-    if not client:
-        return "⚠️ Chưa cấu hình GEMINI_API_KEY trong Secrets của Streamlit."
-    
-    prompt = f"""
-  Hãy đóng vai trò như Google Dịch (Google Translate). Hãy dịch toàn bộ văn bản tiếng Anh dưới đây sang Tiếng Việt một cách trực tiếp, chuẩn xác và phổ thông nhất.
-
-QUY TẮC:
-1. Dịch trung tính, tự nhiên, thông thường như Google Translate.
-2. Giữ nguyên cấu trúc các thẻ phân đoạn trong ngoặc vuông: [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS], [BẢN DỊCH TIẾNG VIỆT], [GỢI Ý ẢNH].
-
-Văn bản cần dịch:
-{text_en}
-    """
-    try:
-        response = client.models.generate_content(
-            model='gemini-3.5-flash-lite',
-            contents=prompt
-        )
-        return response.text
-    except Exception as e:
-        return f"Lỗi khi dịch: {e}"
-
 # 4. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
 
@@ -232,7 +201,7 @@ filter_status = st.sidebar.radio(
 )
 
 search_kw = st.sidebar.text_input("Tìm kiếm theo tiêu đề:")
-compact_mode = st.sidebar.checkbox("📱 Chế độ gọn (danh sách)", value=False)
+compact_mode = st.sidebar.checkbox("📱 Chế độ gọn (danh sách)", value=True)
 page_size = st.sidebar.selectbox("Số bài mỗi trang:", [10, 20, 50], index=1)
 
 filtered_df = df.copy()
@@ -248,14 +217,11 @@ elif filter_status == "Chỉ bài mới (chưa có)":
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
 
-if 'translations_cache' not in st.session_state:
-    st.session_state['translations_cache'] = {}
 if 'current_row' not in st.session_state and not filtered_df.empty:
     first_row = filtered_df.iloc[0]
     st.session_state['current_row'] = first_row
     st.session_state['current_row_idx'] = first_row.name
     st.session_state['current_script'] = get_script_content(first_row)
-    st.session_state['translated_script'] = st.session_state['translations_cache'].get(first_row.name)
 
 # Phân trang: chỉ render số bài của trang hiện tại, thay vì render hết
 # danh sách đã lọc (nguyên nhân chính gây lag khi sheet có 200+ dòng).
@@ -315,37 +281,38 @@ with col_left:
                 title_val = str(row.get(col_title, ''))
                 viewing = " 👈 Đang xem" if idx == current_idx else ""
 
-                st.markdown(f"**[{show_val}]** {badge}{viewing}")
-                st.write(title_val)
-
-                if not compact_mode:
+                if compact_mode:
+                    # Chế độ gọn: show + trạng thái + tiêu đề gộp 1 dòng,
+                    # bỏ dòng nguồn riêng, chỉ giữ tương tác ở dòng nhỏ.
+                    st.markdown(f"**[{show_val}]** {badge}{viewing} {title_val}")
+                    if col_interact and pd.notna(row.get(col_interact)):
+                        st.caption(f"🔥 {row.get(col_interact)}")
+                    if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
+                        st.caption(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
+                else:
+                    st.markdown(f"**[{show_val}]** {badge}{viewing}")
+                    st.write(title_val)
                     source_val = str(row.get(col_source, 'N/A'))
                     info_line = f"Nguồn: `{source_val}`"
                     if col_interact and pd.notna(row.get(col_interact)):
                         info_line += f" | 🔥 {row.get(col_interact)}"
                     st.caption(info_line)
-                elif col_interact and pd.notna(row.get(col_interact)):
-                    st.caption(f"🔥 {row.get(col_interact)}")
-
-                if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
-                    if compact_mode:
-                        st.caption(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
-                    else:
+                    if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
                         st.warning(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
 
                 # Nút xem bài gốc đã chuyển sang đây, nằm cạnh nút xem kịch bản.
                 # Dùng thẻ <a> thay cho link_button để khỏi trùng widget khi
                 # lặp qua nhiều thẻ, và chỉ chấp nhận link http/https.
-                btn_name = "👁️ Xem kịch bản & Copy" if is_ready else "📝 Xem thông tin"
+                if compact_mode:
+                    btn_name = "👁️ Xem" if is_ready else "📝 Xem"
+                else:
+                    btn_name = "👁️ Xem kịch bản & Copy" if is_ready else "📝 Xem thông tin"
                 _b1, _b2 = st.columns([2, 1])
                 with _b1:
                     if st.button(btn_name, key=f"btn_{idx}", use_container_width=True):
                         st.session_state['current_row'] = row
                         st.session_state['current_row_idx'] = idx
                         st.session_state['current_script'] = script_text
-                        # Lấy lại bản dịch đã dịch trước đó của đúng bài này (nếu có),
-                        # thay vì reset mất và phải dịch lại từ đầu.
-                        st.session_state['translated_script'] = st.session_state['translations_cache'].get(idx)
                 with _b2:
                     _link = row.get(col_link) if col_link else None
                     if pd.notna(_link) and str(_link).strip().startswith(("http://", "https://")):
@@ -355,7 +322,7 @@ with col_left:
                             'style="display:block;text-align:center;padding:8px 4px;'
                             'border:1px solid #ccc;border-radius:8px;'
                             'text-decoration:none;color:inherit;font-size:14px;">'
-                            "🌐 Bài gốc</a>",
+                            "🌐 Gốc</a>" if compact_mode else "🌐 Bài gốc</a>",
                             unsafe_allow_html=True,
                         )
                     else:
@@ -371,25 +338,10 @@ with col_right:
         st.info(f"**[{cur.get(col_show, '')}]** {cur.get(col_title, '')}")
         
         if raw_script:
-            # THANH ĐIỀU KHIỂN DỊCH
-            c_trans1, c_trans2 = st.columns([1, 1])
-            with c_trans1:
-                if st.button("🇻🇳 Dịch sang Tiếng Việt", use_container_width=True):
-                    with st.spinner("Gemini đang dịch sang tiếng Việt chuẩn drama..."):
-                        translated = translate_to_vietnamese(raw_script)
-                        st.session_state['translated_script'] = translated
-                        st.session_state['translations_cache'][st.session_state.get('current_row_idx')] = translated
-            
-            with c_trans2:
-                # Chọn ngôn ngữ hiển thị
-                has_trans = bool(st.session_state.get('translated_script'))
-                lang_options = ["🇺🇸 Tiếng Anh (Gốc)", "🇻🇳 Tiếng Việt"] if has_trans else ["🇺🇸 Tiếng Anh (Gốc)"]
-                chosen_lang = st.radio("Ngôn ngữ hiển thị:", lang_options, horizontal=True)
-
-            # Chọn nội dung để hiển thị
+            # Nội dung hiển thị luôn là kịch bản gốc từ cột M.
+            # (Tính năng dịch tự động đã gỡ; bản dịch tiếng Việt vẫn có ở
+            # tab "🇻🇳 Bản dịch" nếu bài đó đã ghi [BẢN DỊCH TIẾNG VIỆT] vào cột M.)
             content_to_show = raw_script
-            if chosen_lang == "🇻🇳 Tiếng Việt" and st.session_state.get('translated_script'):
-                content_to_show = st.session_state['translated_script']
 
             parsed = parse_script(content_to_show)
             copy_button("📋 Copy toàn văn", content_to_show, "copy-full")
@@ -415,22 +367,22 @@ with col_right:
             ])
             
             with tab1:
-                st.caption(f"Phong cách Sarcastic ({chosen_lang}):")
+                st.caption("Phong cách Sarcastic:")
                 copy_button("📋 Copy Sarcastic", parsed["witty"], "copy-witty")
                 st.text_area("Sarcastic:", parsed["witty"], height=240)
 
             with tab2:
-                st.caption(f"Phong cách Gossip ({chosen_lang}):")
+                st.caption("Phong cách Gossip:")
                 copy_button("📋 Copy Gossip", parsed["gossip"], "copy-gossip")
                 st.text_area("Gossip:", parsed["gossip"], height=240)
 
             with tab3:
-                st.caption(f"Phong cách Analytical ({chosen_lang}):")
+                st.caption("Phong cách Analytical:")
                 copy_button("📋 Copy Analytical", parsed["analytical"], "copy-analytical")
                 st.text_area("Analytical:", parsed["analytical"], height=240)
 
             with tab4:
-                st.caption(f"Bình luận mồi ({chosen_lang}):")
+                st.caption("Bình luận mồi:")
                 if parsed["comments"]:
                     copy_button("📋 Copy Seed Comments", parsed["comments"], "copy-comments")
                     st.text_area("Seed comments:", parsed["comments"], height=220)
@@ -446,7 +398,7 @@ with col_right:
                     st.info("Chưa có bản dịch ghi trong cột M cho bài này (các bài mới sẽ có phần [BẢN DỊCH TIẾNG VIỆT] trong cột M).")
 
             with tab6:
-                st.caption(f"Gợi ý ảnh ({chosen_lang}):")
+                st.caption("Gợi ý ảnh:")
                 if parsed["image"]:
                     copy_button("📋 Copy Gợi ý ảnh", parsed["image"], "copy-image")
                     st.text_area("Gợi ý ảnh:", parsed["image"], height=220)
