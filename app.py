@@ -91,16 +91,15 @@ def translate_to_vietnamese(text_en):
         return "⚠️ Chưa cấu hình GEMINI_API_KEY trong Secrets của Streamlit."
     
     prompt = f"""
-    Bạn là biên dịch viên nội dung chuyên về Showbiz và Reality TV TLC.
-    Hãy dịch toàn bộ nội dung kịch bản tiếng Anh sau đây sang Tiếng Việt.
-    
-    YÊU CẦU:
-    1. Giữ nguyên toàn bộ cấu trúc các thẻ [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
-    2. Dịch tự nhiên, cuốn hút, chuẩn văn phong 'hóng drama' của mạng xã hội Việt Nam (bản Sarcastic thì mỉa mai hài hước, bản Gossip thì sôi nổi, bản Analytical thì sâu sắc).
-    3. Không dịch cứng nhắc kiểu từ điển hay máy dịch.
-    
-    Nội dung cần dịch:
-    {text_en}
+  Hãy đóng vai trò như Google Dịch (Google Translate). Hãy dịch toàn bộ văn bản tiếng Anh dưới đây sang Tiếng Việt một cách trực tiếp, chuẩn xác và phổ thông nhất.
+
+QUY TẮC:
+1. Dịch trung tính, tự nhiên, sát nghĩa đen thông thường như Google Translate.
+2. Không thêm từ lóng, không phóng tác, không tự sáng tác thêm ngữ cảnh hay drama.
+3. Giữ nguyên cấu trúc các thẻ phân đoạn trong ngoặc vuông: [OPTION 1:...], [OPTION 2:...], [OPTION 3:...], [SEED COMMENTS].
+
+Văn bản cần dịch:
+{text_en}
     """
     try:
         response = client.models.generate_content(
