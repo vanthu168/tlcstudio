@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import urllib.parse
 import re
 
 # 1. Cấu hình giao diện Streamlit
@@ -11,43 +10,37 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Cấu hình kết nối Google Sheet
+# 2. Kết nối Google Sheet qua Sheet ID và GID chuẩn của tab "Hôm nay"
 SHEET_ID = "1MNbKOlFWj4NqDn9jaO44bWZLz9WPUKivgF0Uz_18mHc"
-TAB_NAME = "Hôm nay"
-encoded_tab = urllib.parse.quote(TAB_NAME)
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_tab}"
+TAB_GID = "2042307707"  # GID tab "Hôm nay"
 
-# Hàm tìm cột không phân biệt hoa thường và khoảng trắng
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={TAB_GID}"
+
 def find_col(columns, target_name):
     for c in columns:
         if str(c).strip().lower() == target_name.strip().lower():
             return c
     return None
 
-# Tải dữ liệu an toàn
 @st.cache_data(ttl=60)
-def load_data():
-    data = pd.read_csv(SHEET_URL)
-    # Loại bỏ khoảng trắng ở tiêu đề cột
+def load_data(url):
+    data = pd.read_csv(url)
     data.columns = [str(c).strip() for c in data.columns]
     return data
 
 try:
-    df = load_data()
+    df = load_data(SHEET_URL)
     
-    # Kiểm tra xem có bị dính trang HTML đăng nhập Google không
     first_col = str(df.columns[0]).lower()
     if "<!doctype" in first_col or "<html" in first_col:
-        st.error("❌ Google Sheet đang bị khóa riêng tư (Private)!")
-        st.warning("👉 Cách xử lý: Mở Google Sheet > Bấm nút 'Chia sẻ' (Share) góc trên bên phải > Chọn 'Bất kỳ ai có đường liên kết đều có thể xem' (Anyone with link can view).")
+        st.error("❌ Google Sheet chưa bật quyền công khai!")
+        st.info("👉 Vào Google Sheet > Bấm 'Chia sẻ' (Share) > Chọn 'Bất kỳ ai có đường liên kết đều có thể xem'.")
         st.stop()
-        
 except Exception as e:
-    st.error(f"❌ Không thể kết nối tới Google Sheet: {e}")
-    st.info("👉 Hãy kiểm tra lại kết nối mạng hoặc quyền chia sẻ của link.")
+    st.error(f"❌ Không thể tải dữ liệu từ Google Sheet: {e}")
     st.stop()
 
-# Xác định tên các cột thực tế trong Sheet
+# Xác định các cột thực tế
 col_show = find_col(df.columns, "Show")
 col_title = find_col(df.columns, "Tiêu đề")
 col_source = find_col(df.columns, "Nguồn")
@@ -57,11 +50,9 @@ col_interact = find_col(df.columns, "Tương tác")
 col_sensitive = find_col(df.columns, "Nhạy cảm")
 col_script = find_col(df.columns, "Kịch bản")
 
-# Nếu không tìm thấy cột 'Show', cảnh báo và hiển thị các cột đang có
 if not col_show:
-    st.error(f"⚠️ Không tìm thấy cột 'Show' trong tab '{TAB_NAME}'.")
-    st.write("Các cột hiện có trong bảng tính của bạn là:", list(df.columns))
-    st.info("👉 Vui lòng kiểm tra lại dòng đầu tiên (Header) hoặc kiểm tra xem tab 'Hôm nay' có đúng tên không.")
+    st.error("⚠️ Không tìm thấy cột 'Show' trong bảng dữ liệu!")
+    st.write("Các cột hiện có:", list(df.columns))
     st.stop()
 
 # Hàm lấy nội dung kịch bản (ưu tiên Cột N / cột 14, fallback về cột Kịch bản)
@@ -83,8 +74,8 @@ def parse_script(raw_text):
     sections = {"witty": "", "gossip": "", "analytical": "", "comments": ""}
     p_witty = re.search(r'\[OPTION 1:.*?\](.*?)(?=\[OPTION 2:|$)', raw_text, re.DOTALL | re.IGNORECASE)
     p_gossip = re.search(r'\[OPTION 2:.*?\](.*?)(?=\[OPTION 3:|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=\[SEED COMMENTS\]|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_comm = re.search(r'\[SEED COMMENTS\](.*)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=[SEED COMMENTS]|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_comm = re.search(r'[SEED COMMENTS](.*)', raw_text, re.DOTALL | re.IGNORECASE)
     
     sections["witty"] = p_witty.group(1).strip() if p_witty else ""
     sections["gossip"] = p_gossip.group(1).strip() if p_gossip else ""
@@ -97,7 +88,7 @@ def parse_script(raw_text):
 
 # 3. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
-st.caption(f"Dữ liệu trực tiếp từ Google Sheet (Tab: **{TAB_NAME}**)")
+st.caption("Dữ liệu tự động đồng bộ từ tab **Hôm nay**")
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 total_news = len(df)
@@ -107,7 +98,7 @@ sensitive_count = df[col_sensitive].dropna().count() if col_sensitive else 0
 
 col_m1.metric("Tổng số tin", total_news)
 col_m2.metric("✅ Đã có kịch bản", has_script)
-col_m3.metric("🆕 Đang chờ kịch bản", new_news)
+col_m3.metric("🆕 Chờ kịch bản", new_news)
 col_m4.metric("⚠️ Nhạy cảm", sensitive_count)
 
 st.divider()
@@ -129,7 +120,7 @@ filter_status = st.sidebar.radio(
     index=1
 )
 
-search_kw = st.sidebar.text_input("Tìm kiếm tiêu đề:")
+search_kw = st.sidebar.text_input("Tìm kiếm theo tiêu đề:")
 
 filtered_df = df.copy()
 
@@ -144,14 +135,14 @@ elif filter_status == "Chỉ bài mới (chưa có)":
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
 
-# 5. Giao diện hiển thị 2 cột
+# 5. Hiển thị danh sách & Chi tiết kịch bản
 col_left, col_right = st.columns([1, 1.3])
 
 with col_left:
     st.subheader(f"📋 Danh sách tin ({len(filtered_df)})")
     
     if filtered_df.empty:
-        st.info("Không có tin nào phù hợp với bộ lọc hiện tại.")
+        st.info("Không có tin nào phù hợp với bộ lọc.")
     else:
         for idx, row in filtered_df.iterrows():
             script_text = get_script_content(row)
@@ -174,13 +165,13 @@ with col_left:
                 if col_sensitive and pd.notna(row.get(col_sensitive)) and str(row.get(col_sensitive)).strip() != "":
                     st.warning(f"⚠️ Nhạy cảm: {row.get(col_sensitive)}")
                 
-                btn_name = "👁️ Xem kịch bản & Copy" if is_ready else "📝 Xem thông tin tin"
+                btn_name = "👁️ Xem kịch bản & Copy" if is_ready else "📝 Xem thông tin"
                 if st.button(btn_name, key=f"btn_{idx}", use_container_width=True):
                     st.session_state['current_row'] = row
                     st.session_state['current_script'] = script_text
 
 with col_right:
-    st.subheader("📑 Chi tiết Kịch bản & Sao chép")
+    st.subheader("📑 Chi tiết Kịch bản Facebook")
     
     if 'current_row' in st.session_state:
         cur = st.session_state['current_row']
@@ -195,39 +186,4 @@ with col_right:
                 st.link_button("🌐 Mở link bài gốc", str(link_val))
         
         if raw_script:
-            parsed = parse_script(raw_script)
-            
-            tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                "🔥 Sarcastic & Witty", 
-                "🗣️ Gossip & Viral", 
-                "🧐 Analytical", 
-                "💬 Seed Comments",
-                "📄 Toàn văn Cột N"
-            ])
-            
-            with tab1:
-                st.caption("Dành cho bài đăng phong cách châm biếm, hài hước:")
-                st.text_area("Nội dung Sarcastic:", parsed["witty"], height=280)
-            
-            with tab2:
-                st.caption("Dành cho bài đăng buôn chuyện kích thích bình luận:")
-                st.text_area("Nội dung Gossip:", parsed["gossip"], height=280)
-                
-            with tab3:
-                st.caption("Góc nhìn phân tích tâm lý khách quan:")
-                st.text_area("Nội dung Analytical:", parsed["analytical"], height=280)
-                
-            with tab4:
-                st.caption("Bình luận mồi thả dưới bài:")
-                if parsed["comments"]:
-                    st.text_area("Seed comments:", parsed["comments"], height=220)
-                else:
-                    st.info("Không tìm thấy phần bình luận mồi riêng.")
-                    
-            with tab5:
-                st.text_area("Toàn văn nội dung gốc:", raw_script, height=350)
-        else:
-            st.warning("⚠️ Dòng này chưa có kịch bản trong Google Sheet.")
-            st.info("👉 Hãy mở Google Sheet, chọn dòng này và bấm menu '🤖 TLC AI Content > 🚀 Tạo kịch bản'!")
-    else:
-        st.info("👈 Bấm vào nút 'Xem kịch bản & Copy' ở danh sách bên trái để hiển thị nội dung.")
+            parsed = parse
