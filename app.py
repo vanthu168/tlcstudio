@@ -359,11 +359,14 @@ filter_status = st.sidebar.radio(
 )
 
 # Nút ẩn bài đã đăng: một nút bấm chuyển đổi (không phải bộ lọc radio),
-# để danh sách gọn lại khi làm việc với các bài chưa đăng. Trạng thái ẩn
-# giữ trong session_state nên vẫn giữ nguyên khi đổi show/trang, và chỉ
-# mất khi tải lại trang. Khi đang xem riêng "Chỉ bài đã đăng" thì nút ẩn
-# tạm không áp dụng, vì hai lựa chọn đó mâu thuẫn nhau.
-_hide_posted = st.session_state.get("hide_posted", False)
+# để danh sách gọn lại khi làm việc với các bài chưa đăng. Mặc định BẬT
+# khi tải lại trang (phiên Streamlit mới): session_state chưa có khóa
+# "hide_posted" thì lấy True, nên nút hiện "Hiện lại bài đã đăng" ngay
+# từ đầu. Trong cùng một phiên, lựa chọn của người dùng vẫn giữ nguyên
+# khi đổi show/trang, và chỉ reset về mặc định bật khi tải lại trang.
+# Khi đang xem riêng "Chỉ bài đã đăng" thì nút ẩn tạm không áp dụng,
+# vì hai lựa chọn đó mâu thuẫn nhau.
+_hide_posted = st.session_state.get("hide_posted", True)
 if st.sidebar.button(
     "👁️ Hiện lại bài đã đăng" if _hide_posted else "🙈 Ẩn bài đã đăng",
     key="btn_hide_posted",
