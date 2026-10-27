@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import re
 import os
+import json
+import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 
@@ -85,6 +87,54 @@ def parse_script(raw_text):
     if not any([sections["witty"], sections["gossip"], sections["analytical"]]):
         sections["witty"] = raw_text
     return sections
+
+# Nút Copy: Streamlit không có API clipboard phía server, nên dùng nút HTML/JS
+# chạy trong trình duyệt để copy đúng đoạn văn bản đang hiển thị.
+def copy_button(label, text, button_id):
+    if not text:
+        return
+    payload = json.dumps(text)
+    components.html(
+        f"""
+        <button id="{button_id}" style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:8px;cursor:pointer;font-size:14px;background:transparent;">
+            {label}
+        </button>
+        <script>
+            (function() {{
+                var btn = document.getElementById("{button_id}");
+                var original = btn.innerText;
+                btn.addEventListener("click", function() {{
+                    var text = {payload};
+                    function done() {{
+                        btn.innerText = "✅ Đã copy!";
+                        setTimeout(function() {{ btn.innerText = original; }}, 2000);
+                    }}
+                    if (navigator.clipboard && navigator.clipboard.writeText) {{
+                        navigator.clipboard.writeText(text).then(done).catch(function() {{
+                            var ta = document.createElement("textarea");
+                            ta.value = text;
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(ta);
+                            done();
+                        }});
+                    }} else {{
+                        var ta = document.createElement("textarea");
+                        ta.value = text;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                        done();
+                    }}
+                }});
+            }})();
+        </script>
+        """,
+        height=45,
+        scrolling=False,
+    )
 
 # Hàm gọi Gemini dịch sang tiếng Việt chuẩn văn phong hóng hớt / drama
 def translate_to_vietnamese(text_en):
@@ -230,7 +280,8 @@ with col_right:
                 content_to_show = st.session_state['translated_script']
 
             parsed = parse_script(content_to_show)
-            
+            copy_button("📋 Copy toàn văn", content_to_show, "copy-full")
+
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "🔥 Sarcastic & Witty", 
                 "🗣️ Gossip & Viral", 
@@ -241,24 +292,29 @@ with col_right:
             
             with tab1:
                 st.caption(f"Phong cách Sarcastic ({chosen_lang}):")
+                copy_button("📋 Copy Sarcastic", parsed["witty"], "copy-witty")
                 st.text_area("Sarcastic:", parsed["witty"], height=280)
-            
+
             with tab2:
                 st.caption(f"Phong cách Gossip ({chosen_lang}):")
+                copy_button("📋 Copy Gossip", parsed["gossip"], "copy-gossip")
                 st.text_area("Gossip:", parsed["gossip"], height=280)
-                
+
             with tab3:
                 st.caption(f"Phong cách Analytical ({chosen_lang}):")
+                copy_button("📋 Copy Analytical", parsed["analytical"], "copy-analytical")
                 st.text_area("Analytical:", parsed["analytical"], height=280)
-                
+
             with tab4:
                 st.caption(f"Bình luận mồi ({chosen_lang}):")
                 if parsed["comments"]:
+                    copy_button("📋 Copy Seed Comments", parsed["comments"], "copy-comments")
                     st.text_area("Seed comments:", parsed["comments"], height=220)
                 else:
                     st.info("Chưa có danh sách bình luận mồi riêng.")
-                    
+
             with tab5:
+                copy_button("📋 Copy toàn văn", content_to_show, "copy-full-tab")
                 st.text_area("Toàn văn nội dung:", content_to_show, height=350)
         else:
             st.warning("⚠️ Dòng này chưa có nội dung kịch bản trong Google Sheet.")
