@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import html
+import urllib.request
 import json
 import streamlit.components.v1 as components
 
@@ -169,6 +170,37 @@ def copy_button(label, text, button_id):
         scrolling=False,
     )
 
+# Ghi trạng thái "Đã đăng" vào cột J của sheet qua Apps Script web app.
+# Dash chỉ đọc sheet qua CSV công khai nên không tự ghi được; endpoint này
+# là cầu nối ghi duy nhất. Endpoint và token lấy từ Streamlit Secrets:
+# SHEETS_WRITE_URL và SHEETS_WRITE_TOKEN. Chưa cấu hình thì hàm trả False
+# kèm hướng dẫn, app không crash và không báo ghi thành công giả.
+# Apps Script định vị dòng theo Link (cột E) ở các tab dữ liệu + "Hôm nay",
+# rồi đặt cột J thành "Đã đăng". Xem hướng dẫn thiết lập trong chat.
+def mark_posted(link):
+    try:
+        url = st.secrets.get("SHEETS_WRITE_URL")
+        token = st.secrets.get("SHEETS_WRITE_TOKEN")
+    except Exception:
+        url, token = None, None
+    if not url or not token:
+        return False, "Chưa cấu hình SHEETS_WRITE_URL / SHEETS_WRITE_TOKEN trong Streamlit Secrets, nên chưa ghi được vào sheet. Làm theo hướng dẫn thiết lập Apps Script rồi bấm lại."
+    if not link or not str(link).strip().startswith(("http://", "https://")):
+        return False, "Bài này không có link gốc hợp lệ để định vị dòng trong sheet."
+    payload = json.dumps({"token": token, "link": str(link).strip(), "status": "Đã đăng"}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return False, f"Không gọi được Apps Script: {e}"
+    if data.get("ok"):
+        updated = data.get("updated") or []
+        if updated:
+            return True, f"Đã ghi Đã đăng cho {len(updated)} dòng."
+        return True, "Đã ghi Đã đăng (không tìm thấy dòng nào khớp link, hãy kiểm tra lại link trong sheet)."
+    return False, f"Apps Script báo lỗi: {data.get('error', 'không rõ')}"
+
 # 4. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
 
@@ -225,7 +257,7 @@ selected_show = st.sidebar.selectbox("Chọn Show:", all_shows, key="show_sideba
 
 filter_status = st.sidebar.radio(
     "Trạng thái kịch bản:",
-    ["Tất cả", "Chỉ bài đã có kịch bản", "Chỉ bài mới (chưa có)"],
+    ["Tất cả", "Chỉ bài đã có kịch bản", "Chỉ bài mới (chưa có)", "Chỉ bài đã đăng"],
     index=1
 )
 
@@ -242,6 +274,11 @@ if filter_status == "Chỉ bài đã có kịch bản":
     filtered_df = filtered_df[has_script_mask.loc[filtered_df.index]]
 elif filter_status == "Chỉ bài mới (chưa có)":
     filtered_df = filtered_df[~has_script_mask.loc[filtered_df.index]]
+elif filter_status == "Chỉ bài đã đăng":
+    if col_status:
+        filtered_df = filtered_df[filtered_df[col_status].fillna("").astype(str).str.strip() == "Đã đăng"]
+    else:
+        filtered_df = filtered_df.iloc[0:0]
 
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
@@ -305,7 +342,13 @@ with col_left:
             is_ready = bool(script_text)
 
             with st.container(border=True):
-                badge = "🟢 Đã có kịch bản" if is_ready else "⚪ Mới"
+                _status_val = str(row.get(col_status, "")).strip() if col_status else ""
+                if _status_val == "Đã đăng":
+                    badge = "✅ Đã đăng"
+                elif is_ready:
+                    badge = "🟢 Đã có kịch bản"
+                else:
+                    badge = "⚪ Mới"
                 show_val = str(row.get(col_show, ''))
                 title_val = str(row.get(col_title, ''))
                 viewing = " 👈 Đang xem" if idx == current_idx else ""
@@ -362,12 +405,30 @@ with col_left:
 
 with col_right:
     st.subheader("📑 Kịch bản Facebook (Copy nhanh)")
-    
+
+    _posted_notice = st.session_state.pop('posted_notice', None)
+    if _posted_notice:
+        st.success("✅ Đã ghi Đã đăng vào sheet cho bài vừa chọn.")
+
     if 'current_row' in st.session_state:
         cur = st.session_state['current_row']
         raw_script = st.session_state.get('current_script', '')
-        
+
         st.info(f"**[{cur.get(col_show, '')}]** {cur.get(col_title, '')}")
+
+        # Nút Đã đăng: ghi thật vào cột J của sheet qua Apps Script.
+        _cur_status = str(cur.get(col_status, "")).strip() if col_status else ""
+        _cur_link = cur.get(col_link) if col_link else None
+        if _cur_status == "Đã đăng":
+            st.success("✅ Bài này đã được đánh dấu Đã đăng trong sheet.")
+        elif st.button("✅ Đánh dấu Đã đăng", use_container_width=True):
+            _ok, _msg = mark_posted(_cur_link)
+            if _ok:
+                st.session_state['posted_notice'] = str(cur.get(col_title, ''))
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.warning(_msg)
         
         if raw_script:
             # Nội dung hiển thị luôn là kịch bản gốc từ cột M.
