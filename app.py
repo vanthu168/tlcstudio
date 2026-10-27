@@ -232,6 +232,36 @@ def run_hunt():
         return True, msg
     return False, f"Apps Script báo lỗi: {data.get('error', 'không rõ')}"
 
+# Làm mới trang "Hôm nay" trên sheet qua cùng Apps Script web app (cùng
+# URL/token với nút Đã đăng và Săn tin, không cần Secrets mới). Apps Script
+# chạy hàm lamMoiHomNay_ — chép lại toàn bộ cột A–M từ các tab show cho
+# các bài trong 48 giờ qua vào tab "Hôm nay", sắp xếp mới nhất lên trên.
+# Đây là cách đưa các bài đã có kịch bản ở tab show (nhưng chưa vào
+# "Hôm nay") lên Dash, vì Dash chỉ đọc tab "Hôm nay". Làm mới chỉ đọc và
+# chép lại, không săn tin báo mới, không đổi trạng thái nào. Timeout 120
+# giây là đủ cho một lần chép lại; quá thời gian thì kiểm tra lại tab
+# "Hôm nay" trong sheet thay vì bấm thêm lần nữa.
+def run_refresh_today():
+    try:
+        url = st.secrets.get("SHEETS_WRITE_URL")
+        token = st.secrets.get("SHEETS_WRITE_TOKEN")
+    except Exception:
+        url, token = None, None
+    if not url or not token:
+        return False, "Chưa cấu hình SHEETS_WRITE_URL / SHEETS_WRITE_TOKEN trong Streamlit Secrets, nên chưa làm mới được trang Hôm nay. Làm theo hướng dẫn thiết lập Apps Script rồi bấm lại."
+    payload = json.dumps({"token": token, "action": "lamMoiHomNay"}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return False, f"Không gọi được Apps Script (kiểm tra lại tab Hôm nay trong sheet thay vì bấm lại ngay): {e}"
+    if data.get("ok"):
+        rows = data.get("rows")
+        msg = f"Đã làm mới trang Hôm nay, {rows} dòng." if rows is not None else "Đã làm mới trang Hôm nay."
+        return True, msg
+    return False, f"Apps Script báo lỗi: {data.get('error', 'không rõ')}"
+
 # 4. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
 
@@ -272,6 +302,10 @@ _hunt_notice = st.session_state.pop('hunt_notice', None)
 if _hunt_notice:
     st.sidebar.success(f"✅ {_hunt_notice}")
 
+_refresh_notice = st.session_state.pop('refresh_notice', None)
+if _refresh_notice:
+    st.sidebar.success(f"✅ {_refresh_notice}")
+
 if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
@@ -286,6 +320,17 @@ if st.sidebar.button("🔎 Săn tin ngay", use_container_width=True):
     else:
         st.sidebar.warning(_msg)
 st.sidebar.caption("Săn tin ngay chạy script trên sheet (tương đương menu Chạy ngay), rồi tải lại danh sách.")
+
+if st.sidebar.button("🔄 Làm mới Hôm nay", use_container_width=True):
+    with st.spinner("Đang làm mới trang Hôm nay, đừng bấm thêm lần nữa..."):
+        _ok, _msg = run_refresh_today()
+    if _ok:
+        st.session_state['refresh_notice'] = _msg
+        st.cache_data.clear()
+        st.rerun()
+    else:
+        st.sidebar.warning(_msg)
+st.sidebar.caption("Làm mới Hôm nay chỉ chép lại tab Hôm nay từ các tab show (không săn tin mới), để các bài đã có kịch bản ở tab show hiện lên Dash.")
 
 show_values = [str(s) for s in df[col_show].dropna().unique() if str(s).strip() != ""]
 all_shows = ["Tất cả Show"] + show_values
