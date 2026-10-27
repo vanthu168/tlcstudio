@@ -306,7 +306,24 @@ _refresh_notice = st.session_state.pop('refresh_notice', None)
 if _refresh_notice:
     st.sidebar.success(f"✅ {_refresh_notice}")
 
+_refresh_error = st.session_state.pop('refresh_error', None)
+if _refresh_error:
+    st.sidebar.warning(f"⚠️ {_refresh_error}")
+
 if st.sidebar.button("🔄 Làm mới dữ liệu", use_container_width=True):
+    # Nút này vừa làm mới dữ liệu hiển thị, vừa chép lại tab "Hôm nay"
+    # từ các tab show qua Apps Script, để các bài đã có kịch bản ở tab
+    # show (nhưng chưa vào "Hôm nay") cũng hiện lên Dash ngay, thay vì
+    # chỉ tải lại bản snapshot cũ. Nếu gọi Apps Script thất bại (kẹt
+    # khóa do một lần chạy khác, hết thời gian chờ, chưa cập nhật script),
+    # vẫn xóa cache và tải lại danh sách cũ thay vì kẹt ở lỗi, và báo
+    # lý do bằng thông báo cảnh báo sau khi tải lại.
+    with st.spinner("Đang làm mới trang Hôm nay từ các tab show, đợi một chút..."):
+        _ok, _msg = run_refresh_today()
+    if _ok:
+        st.session_state['refresh_notice'] = _msg
+    else:
+        st.session_state['refresh_error'] = f"{_msg} Danh sách bên dưới vẫn được tải lại từ tab Hôm nay hiện tại."
     st.cache_data.clear()
     st.rerun()
 
@@ -319,18 +336,7 @@ if st.sidebar.button("🔎 Săn tin ngay", use_container_width=True):
         st.rerun()
     else:
         st.sidebar.warning(_msg)
-st.sidebar.caption("Săn tin ngay chạy script trên sheet (tương đương menu Chạy ngay), rồi tải lại danh sách.")
-
-if st.sidebar.button("🔄 Làm mới Hôm nay", use_container_width=True):
-    with st.spinner("Đang làm mới trang Hôm nay, đừng bấm thêm lần nữa..."):
-        _ok, _msg = run_refresh_today()
-    if _ok:
-        st.session_state['refresh_notice'] = _msg
-        st.cache_data.clear()
-        st.rerun()
-    else:
-        st.sidebar.warning(_msg)
-st.sidebar.caption("Làm mới Hôm nay chỉ chép lại tab Hôm nay từ các tab show (không săn tin mới), để các bài đã có kịch bản ở tab show hiện lên Dash.")
+st.sidebar.caption("Làm mới dữ liệu chép lại tab Hôm nay từ các tab show rồi tải lại danh sách. Săn tin ngay chạy script trên sheet (tương đương menu Chạy ngay), rồi tải lại danh sách.")
 
 show_values = [str(s) for s in df[col_show].dropna().unique() if str(s).strip() != ""]
 all_shows = ["Tất cả Show"] + show_values
