@@ -85,10 +85,10 @@ def parse_script(raw_text):
         sections["witty"] = raw_text
     return sections
 
-# Hàm gọi Gemini dịch sát nghĩa nhất theo nguyên bản
+# Hàm gọi  dịch sát nghĩa nhất theo nguyên bản
 def translate_to_vietnamese(text_en):
     if not client:
-        return "⚠️ Chưa cấu hình GEMINI_API_KEY trong Secrets của Streamlit."
+        return "⚠️ Chưa cấu hình _API_KEY trong Secrets của Streamlit."
     
     prompt = f"""
 Bạn là một dịch giả chuyên nghiệp. Hãy dịch toàn bộ nội dung kịch bản tiếng Anh sau đây sang Tiếng Việt theo tiêu chuẩn SÁT NGHĨA NHẤT (Faithful & Literal Translation).
@@ -106,7 +106,7 @@ Nội dung cần dịch:
 """
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3.5-flash-lite',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.1  # Giữ nhiệt độ thấp để bản dịch bám sát nguyên gốc tuyệt đối
