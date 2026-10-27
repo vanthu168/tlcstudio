@@ -10,9 +10,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Kết nối Google Sheet qua Sheet ID và GID chuẩn của tab "Hôm nay"
+# 2. Kết nối Google Sheet qua Sheet ID và GID tab "Hôm nay"
 SHEET_ID = "1MNbKOlFWj4NqDn9jaO44bWZLz9WPUKivgF0Uz_18mHc"
-TAB_GID = "2042307707"  # GID tab "Hôm nay"
+TAB_GID = "2042307707"
 
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={TAB_GID}"
 
@@ -30,17 +30,14 @@ def load_data(url):
 
 try:
     df = load_data(SHEET_URL)
-    
     first_col = str(df.columns[0]).lower()
     if "<!doctype" in first_col or "<html" in first_col:
         st.error("❌ Google Sheet chưa bật quyền công khai!")
-        st.info("👉 Vào Google Sheet > Bấm 'Chia sẻ' (Share) > Chọn 'Bất kỳ ai có đường liên kết đều có thể xem'.")
         st.stop()
 except Exception as e:
     st.error(f"❌ Không thể tải dữ liệu từ Google Sheet: {e}")
     st.stop()
 
-# Xác định các cột thực tế
 col_show = find_col(df.columns, "Show")
 col_title = find_col(df.columns, "Tiêu đề")
 col_source = find_col(df.columns, "Nguồn")
@@ -50,20 +47,15 @@ col_interact = find_col(df.columns, "Tương tác")
 col_sensitive = find_col(df.columns, "Nhạy cảm")
 col_script = find_col(df.columns, "Kịch bản")
 
-if not col_show:
-    st.error("⚠️ Không tìm thấy cột 'Show' trong bảng dữ liệu!")
-    st.write("Các cột hiện có:", list(df.columns))
-    st.stop()
-
 # Hàm lấy nội dung kịch bản (ưu tiên Cột N / cột 14, fallback về cột Kịch bản)
 def get_script_content(row):
     if len(row) >= 14 and pd.notna(row.iloc[13]):
         val = str(row.iloc[13]).strip()
-        if val != "":
+        if val != "" and val.lower() != "nan":
             return val
     if col_script and col_script in row and pd.notna(row[col_script]):
         val = str(row[col_script]).strip()
-        if val != "":
+        if val != "" and val.lower() != "nan":
             return val
     return ""
 
@@ -74,8 +66,8 @@ def parse_script(raw_text):
     sections = {"witty": "", "gossip": "", "analytical": "", "comments": ""}
     p_witty = re.search(r'\[OPTION 1:.*?\](.*?)(?=\[OPTION 2:|$)', raw_text, re.DOTALL | re.IGNORECASE)
     p_gossip = re.search(r'\[OPTION 2:.*?\](.*?)(?=\[OPTION 3:|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=[SEED COMMENTS]|$)', raw_text, re.DOTALL | re.IGNORECASE)
-    p_comm = re.search(r'[SEED COMMENTS](.*)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_anal = re.search(r'\[OPTION 3:.*?\](.*?)(?=\[SEED COMMENTS\]|$)', raw_text, re.DOTALL | re.IGNORECASE)
+    p_comm = re.search(r'\[SEED COMMENTS\](.*)', raw_text, re.DOTALL | re.IGNORECASE)
     
     sections["witty"] = p_witty.group(1).strip() if p_witty else ""
     sections["gossip"] = p_gossip.group(1).strip() if p_gossip else ""
@@ -88,7 +80,6 @@ def parse_script(raw_text):
 
 # 3. Tiêu đề ứng dụng & Thống kê
 st.title("📺 TLC News & Content Hub")
-st.caption("Dữ liệu tự động đồng bộ từ tab **Hôm nay**")
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 total_news = len(df)
@@ -135,8 +126,14 @@ elif filter_status == "Chỉ bài mới (chưa có)":
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
 
+# Tự động chọn dòng đầu tiên nếu chưa chọn dòng nào
+if 'current_row' not in st.session_state and not filtered_df.empty:
+    first_row = filtered_df.iloc[0]
+    st.session_state['current_row'] = first_row
+    st.session_state['current_script'] = get_script_content(first_row)
+
 # 5. Hiển thị danh sách & Chi tiết kịch bản
-col_left, col_right = st.columns([1, 1.3])
+col_left, col_right = st.columns([1, 1.25])
 
 with col_left:
     st.subheader(f"📋 Danh sách tin ({len(filtered_df)})")
@@ -171,19 +168,54 @@ with col_left:
                     st.session_state['current_script'] = script_text
 
 with col_right:
-    st.subheader("📑 Chi tiết Kịch bản Facebook")
+    st.subheader("📑 Kịch bản Facebook (Copy nhanh)")
     
     if 'current_row' in st.session_state:
         cur = st.session_state['current_row']
         raw_script = st.session_state.get('current_script', '')
         
-        with st.expander("📌 Thông tin bài gốc", expanded=False):
-            st.write(f"**Show:** {cur.get(col_show, '')}")
-            st.write(f"**Tiêu đề:** {cur.get(col_title, '')}")
+        st.info(f"**[{cur.get(col_show, '')}]** {cur.get(col_title, '')}")
+        
+        if raw_script:
+            parsed = parse_script(raw_script)
+            
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "🔥 Sarcastic & Witty", 
+                "🗣️ Gossip & Viral", 
+                "🧐 Analytical", 
+                "💬 Seed Comments",
+                "📄 Toàn văn Cột N"
+            ])
+            
+            with tab1:
+                st.caption("Bấm chuột vào ô để sao chép bài đăng Sarcastic:")
+                st.text_area("Sarcastic:", parsed["witty"], height=280)
+            
+            with tab2:
+                st.caption("Bấm chuột vào ô để sao chép bài đăng Gossip kéo tương tác:")
+                st.text_area("Gossip:", parsed["gossip"], height=280)
+                
+            with tab3:
+                st.caption("Góc nhìn phân tích tâm lý khách quan:")
+                st.text_area("Analytical:", parsed["analytical"], height=280)
+                
+            with tab4:
+                st.caption("Bình luận mồi thả dưới bài:")
+                if parsed["comments"]:
+                    st.text_area("Seed comments:", parsed["comments"], height=220)
+                else:
+                    st.info("Chưa có danh sách bình luận mồi riêng.")
+                    
+            with tab5:
+                st.text_area("Toàn văn nội dung gốc từ Cột N:", raw_script, height=350)
+        else:
+            st.warning("⚠️ Dòng này chưa có nội dung kịch bản trong Google Sheet.")
+            st.info("👉 Mở Google Sheet, click dòng này và bấm '🤖 TLC AI Content > 🚀 Tạo kịch bản'.")
+            
+        with st.expander("🔗 Xem nguồn & link bài gốc", expanded=False):
             st.write(f"**Nguồn:** {cur.get(col_source, '')}")
             link_val = cur.get(col_link) if col_link else None
             if pd.notna(link_val) and str(link_val).startswith("http"):
-                st.link_button("🌐 Mở link bài gốc", str(link_val))
-        
-        if raw_script:
-            parsed = parse
+                st.link_button("🌐 Mở link bài viết gốc", str(link_val))
+    else:
+        st.info("👈 Chọn một tin ở danh sách bên trái để xem nội dung.")
