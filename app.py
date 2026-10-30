@@ -358,6 +358,35 @@ filter_status = st.sidebar.radio(
     index=1
 )
 
+# Nút ẩn bài đã đăng: một nút bấm chuyển đổi (không phải bộ lọc radio),
+# để danh sách gọn lại khi làm việc với các bài chưa đăng. Mặc định BẬT
+# khi tải lại trang (phiên Streamlit mới): khóa "hide_posted" được ghi
+# thật vào session_state với True ngay lần đầu, chứ không chỉ lấy giá
+# trị mặc định cho nhãn nút. Lỗi cũ ở đây: nhãn nút hiện "Hiện lại"
+# nhưng bộ lọc lại đọc session_state.get("hide_posted") và nhận None
+# vì khóa chưa từng được ghi, nên bài đã đăng vẫn lọt vào danh sách,
+# kể cả ở lựa chọn "Chỉ bài đã có kịch bản" (bài đã đăng vốn cũng có
+# kịch bản nên vẫn qua bộ lọc kịch bản). Trong cùng một phiên, lựa
+# chọn của người dùng vẫn giữ nguyên khi đổi show/trang, và chỉ reset
+# về mặc định bật khi tải lại trang. Khi đang xem riêng "Chỉ bài đã
+# đăng" thì nút ẩn tạm không áp dụng, vì hai lựa chọn đó mâu thuẫn nhau.
+if "hide_posted" not in st.session_state:
+    st.session_state["hide_posted"] = True
+_hide_posted = st.session_state["hide_posted"]
+if st.sidebar.button(
+    "👁️ Hiện lại bài đã đăng" if _hide_posted else "🙈 Ẩn bài đã đăng",
+    key="btn_hide_posted",
+    use_container_width=True,
+):
+    st.session_state["hide_posted"] = not _hide_posted
+    st.session_state["page_num"] = 1
+    st.rerun()
+if _hide_posted:
+    if filter_status == "Chỉ bài đã đăng":
+        st.sidebar.caption("Đang xem riêng bài đã đăng nên nút ẩn tạm không áp dụng.")
+    else:
+        st.sidebar.caption("Đang ẩn các bài có trạng thái “Đã đăng”.")
+
 search_kw = st.sidebar.text_input("Tìm kiếm theo tiêu đề:")
 compact_mode = st.sidebar.checkbox("📱 Chế độ gọn (danh sách)", value=True)
 page_size = st.sidebar.selectbox("Số bài mỗi trang:", [10, 20, 50], index=1)
@@ -377,8 +406,27 @@ elif filter_status == "Chỉ bài đã đăng":
     else:
         filtered_df = filtered_df.iloc[0:0]
 
+# Ẩn bài đã đăng (áp dụng sau bộ lọc trạng thái, trừ khi người dùng đang
+# xem riêng "Chỉ bài đã đăng" như đã ghi chú ở nút bấm).
+if _hide_posted and filter_status != "Chỉ bài đã đăng" and col_status:
+    filtered_df = filtered_df[filtered_df[col_status].fillna("").astype(str).str.strip() != "Đã đăng"]
+
 if search_kw.strip() and col_title:
     filtered_df = filtered_df[filtered_df[col_title].astype(str).str.contains(search_kw.strip(), case=False, na=False)]
+
+# Nếu bài đang xem bị lọc mất (ví dụ vừa bấm ẩn bài đã đăng trong khi
+# bài đó đã đăng), chuyển sang bài đầu tiên còn lại thay vì giữ bài ẩn
+# ở khung phải.
+if 'current_row_idx' in st.session_state and st.session_state['current_row_idx'] not in filtered_df.index:
+    if not filtered_df.empty:
+        first_row = filtered_df.iloc[0]
+        st.session_state['current_row'] = first_row
+        st.session_state['current_row_idx'] = first_row.name
+        st.session_state['current_script'] = get_script_content(first_row)
+    else:
+        st.session_state.pop('current_row', None)
+        st.session_state.pop('current_row_idx', None)
+        st.session_state.pop('current_script', None)
 
 if 'current_row' not in st.session_state and not filtered_df.empty:
     first_row = filtered_df.iloc[0]
