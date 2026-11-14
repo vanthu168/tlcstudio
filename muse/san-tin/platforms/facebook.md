@@ -10,9 +10,28 @@ questions, or message anyone. If a page or group cannot be read without joining 
 skip it and say so in the run report. Never send or ask for a verification code: if Facebook asks
 for one, stop the Facebook part of the run and say so.
 
+LIST ONLY: hunt only the pages and groups in `/hunt-sources`. No broad search on Facebook, no
+"pages that look relevant". To suggest a new page or group, write it in the run report; the owner
+adds it on the Dash.
+
+## Finding new posts (timeline is blocked)
+
+Listing a page timeline through the Facebook CLI returns 403 (checked 15/11/2026); reading one
+post by its permalink works. So find the post links first, then read each one:
+
+1. Try the CLI timeline once per run. If it works, use it and skip step 2.
+2. Otherwise open the page in the browser (logged-in session, read only) and collect post
+   permalinks from the last 48 h. If the browser also fails, use web search restricted to the page,
+   e.g. `site:facebook.com/<value>` with the last 2 days, and keep only links whose path starts
+   with `/<value>/` or `/reel/` and that the post read confirms belongs to this page.
+3. Read every candidate with the post-read tool. Drop it if the author is not this page or the post
+   is older than 48 h.
+4. In the run report, say per page which method found the links (cli, browser, search) and how
+   many. A page with 0 links from every method is "no new posts", not an error.
+
 ## Pages (`facebook_page`)
 
-1. Read posts from the last 48 h (respect `cadence_min`).
+1. Read posts from the last 48 h (respect `cadence_min`), found as above.
 2. One item per post:
    - `source_type: facebook`, `signal_type: post`
    - `publisher: "@<value>"` exactly as in `/hunt-sources` (the gateway grades the item from it)
@@ -39,7 +58,7 @@ for one, stop the Facebook part of the run and say so.
 
 Only groups that appear in `/hunt-sources` AND that your account can already read.
 
-1. Read posts from the last 24 h, top posts by comments first, at most 20 per group per run.
+1. Use the same link finding as pages (group feed, then browser, then search). Read posts from the last 24 h, top posts by comments first, at most 20 per group per run.
 2. One item per post: `source_type: facebook`, `signal_type: post`,
    `publisher: "@<value>"`, `url: https://www.facebook.com/groups/<value>/posts/<id>`.
 3. Privacy: group posters are private people. Do NOT send their names, profile links, photos,
