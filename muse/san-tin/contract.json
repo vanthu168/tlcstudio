@@ -1,0 +1,42 @@
+{
+  "contract_version": 17,
+  "updated": "2026-11-14",
+  "gateway": "https://txlesggxvribpwsqzrod.supabase.co/functions/v1/ingest",
+  "auth": "Header x-ingest-key = the Muse key from your private settings. Never write it anywhere.",
+  "endpoints": {
+    "POST /": "Send items. Body {\"items\":[...]} (max 100). Response: received, inserted, duplicates, metrics_updated, content_updated, rejected[{index,error}], remaining_today.",
+    "GET /hunt-sources": "Enabled sources for Muse: id, kind, value, label, show, tier, min_score, match_regex, cadence_min, note.",
+    "GET /watchlist": "Cast list: display_name, aliases, social_handles.",
+    "GET /contract": "Currently accepted enum values and limits."
+  },
+  "limits": { "max_batch": 100, "daily_new_items": 500, "note": "Daily limit counts only NEW links (UTC day). Metric/content updates of known links are free." },
+  "shows": ["90 Day Fiancé", "1000-Lb Sisters", "Sister Wives", "Welcome to Plathville", "7 Little Johnstons", "Khác"],
+  "item": {
+    "url":            { "type": "string", "required": true, "max": 2000, "rule": "http(s) permalink of the post/article/video" },
+    "source_type":    { "type": "enum", "required": true, "values": ["news", "reddit", "instagram", "facebook", "tiktok", "youtube", "other"] },
+    "title":          { "type": "string", "required": true, "max": 500, "rule": "original headline or first line" },
+    "signal_type":    { "type": "enum", "default": "article", "values": ["article", "post", "story", "unfollow", "deleted", "reply", "thread"] },
+    "publisher":      { "type": "string", "max": 200, "rule": "site name, 'r/<sub>', '@handle', or 'YouTube: <channel>'" },
+    "show":           { "type": "string", "max": 100, "rule": "one of shows[] when clear, else omit" },
+    "people_hint":    { "type": "string[]", "max_items": 20, "rule": "display_name exactly as in /watchlist" },
+    "published_at":   { "type": "ISO 8601", "rule": "from the page only" },
+    "event_at":       { "type": "ISO 8601", "rule": "when the event itself happened, if stated" },
+    "body":           { "type": "string", "max": 3000, "rule": "original text, longer is cut" },
+    "quote_verbatim": { "type": "string", "max": 1000, "rule": "exact words, no paraphrase" },
+    "claim_nature":   { "type": "enum", "values": ["fact", "claim", "rumor", "opinion", "reaction", "deleted", "unfollow", "announcement", "legal"] },
+    "use_tags":       { "type": "string[]", "max_items": 10, "rule": "lowercase-hyphenated, max 40 chars each" },
+    "evidence":       { "type": "object", "max_bytes": 10000, "keys": ["permalink", "seen_at", "author_handle", "archived_url", "media_count", "edited"] },
+    "media_url":      { "type": "string", "rule": "direct image URL" },
+    "media_urls":     { "type": "string[]", "max_items": 20, "rule": "images in original order" },
+    "score":          { "type": "integer", "rule": "Reddit score / likes" },
+    "comments":       { "type": "integer", "min": 0 },
+    "hot":            { "type": "boolean" },
+    "engagement":     { "type": "integer", "min": 0, "rule": "views/likes when no score" },
+    "flair":          { "type": "string", "max": 100 },
+    "top_comments":   { "type": "array", "max_items": 10, "item": { "body": "string max 500", "score": "integer" }, "rule": "NO usernames" },
+    "sensitive_hint": { "type": "boolean", "rule": "true for death, minors, abuse, explicit health details" },
+    "raw":            { "type": "object", "max_bytes": 20000, "rule": "anything extra, e.g. {\"platform_id\":\"...\"}" }
+  },
+  "server_assigned_do_not_send": ["source_tier", "trust_grade", "hunt_source_id", "content_hash", "fetched_at"],
+  "tiers": { "official_cast": "A", "official_network": "A", "press_1": "B", "press_2": "C", "community": "D" }
+}
