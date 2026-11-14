@@ -1,6 +1,6 @@
 ---
 name: tlc-news-hunt
-version: 2
+version: 3
 updated: 2026-11-14
 owner: TLC Post (Javis)
 ---
@@ -38,6 +38,7 @@ Pull this folder at the start of EVERY run. If this file changed, follow the new
 2. `GET {GATEWAY}/watchlist` for the cast list (names, aliases, social handles). Use it to
    fill `people_hint` and to recognise cast accounts.
 3. For each due source, follow the guide in `platforms/<platform>.md`.
+   Each scheduled task hunts only its own platforms (see "Task split" below).
 4. Build items per `contract.json`. Send in batches of at most 100:
    `POST {GATEWAY}` with body `{"items":[...]}`.
 5. Read the response. `rejected` lists items the gateway refused and why. Fix the field
@@ -47,6 +48,16 @@ Pull this folder at the start of EVERY run. If this file changed, follow the new
 
 `{GATEWAY}` = `https://txlesggxvribpwsqzrod.supabase.co/functions/v1/ingest`
 `GET {GATEWAY}/contract` returns the currently accepted values.
+
+## Task split
+
+| Task | Platforms (`kind`) | Schedule |
+|---|---|---|
+| `tlc-reddit-hourly-hunt` | subreddit | every hour |
+| `tlc-news-hunt` | news_site, rss, youtube | every hour |
+| `tlc-social-hunt` | instagram, tiktok | every 3 hours; TikTok sources only when their `cadence_min` (360) is due |
+
+A task ignores sources of platforms that belong to another task.
 
 ## Classification (scientific archive)
 
