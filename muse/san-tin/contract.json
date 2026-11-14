@@ -6,18 +6,19 @@
   "endpoints": {
     "POST /": "Send items. Body {\"items\":[...]} (max 100). Response: received, inserted, duplicates, metrics_updated, content_updated, rejected[{index,error}], remaining_today.",
     "GET /hunt-sources": "Enabled sources for Muse: id, kind, value, label, show, tier, min_score, match_regex, cadence_min, note.",
+    "GET /shows": "Shows to hunt: id, name, aliases, hashtags, mode. Send `show` as the exact name; spin-offs go under the parent show.",
     "GET /watchlist": "Cast list: display_name, aliases, social_handles.",
     "GET /contract": "Currently accepted enum values and limits."
   },
   "limits": { "max_batch": 100, "daily_new_items": 500, "note": "Daily limit counts only NEW links (UTC day). Metric/content updates of known links are free." },
-  "shows": ["90 Day Fiancé", "1000-Lb Sisters", "Sister Wives", "Welcome to Plathville", "7 Little Johnstons", "Khác"],
+  "shows_note": "No fixed list: read GET /shows each run. The gateway maps aliases/spin-off names to the main name.",
   "item": {
     "url":            { "type": "string", "required": true, "max": 2000, "rule": "http(s) permalink of the post/article/video" },
     "source_type":    { "type": "enum", "required": true, "values": ["news", "reddit", "instagram", "facebook", "tiktok", "youtube", "other"] },
     "title":          { "type": "string", "required": true, "max": 500, "rule": "original headline or first line" },
     "signal_type":    { "type": "enum", "default": "article", "values": ["article", "post", "story", "unfollow", "deleted", "reply", "thread"] },
     "publisher":      { "type": "string", "max": 200, "rule": "site name, 'r/<sub>', '@handle', or 'YouTube: <channel>'" },
-    "show":           { "type": "string", "max": 100, "rule": "one of shows[] when clear, else omit" },
+    "show":           { "type": "string", "max": 100, "rule": "name of a show from GET /shows when clear, else omit" },
     "people_hint":    { "type": "string[]", "max_items": 20, "rule": "display_name exactly as in /watchlist" },
     "published_at":   { "type": "ISO 8601", "rule": "from the page only" },
     "event_at":       { "type": "ISO 8601", "rule": "when the event itself happened, if stated" },

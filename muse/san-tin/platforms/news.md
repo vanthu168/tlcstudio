@@ -4,7 +4,7 @@ Sources: `kind = news_site` (value = domain) and `kind = rss`. Tier is press_1 o
 
 1. Open the site's TLC / reality TV section or RSS feed, or web-search
    `site:<domain> <show name>` for the last 48 h.
-2. Keep only articles about the five shows or watchlist people.
+2. Keep only articles about the shows from `/shows` (name or any alias) or watchlist people.
 3. One item per article:
    - `source_type: news`, `signal_type: article`, `publisher`: site name
    - `url`: canonical article URL (no tracking params)
@@ -30,9 +30,9 @@ Sources: `kind = news_site` (value = domain) and `kind = rss`. Tier is press_1 o
 The listed sites do not cover everything. Since 14/11/2026 Apps Script (Google News) is off,
 so this step replaces it.
 
-1. Web-search each of the five show names, plus every watchlist name that appeared in a
+1. Web-search the `name` of each show from `/shows`, plus every watchlist name that appeared in a
    listed-site article this run, limited to the last 48 h (news tab / past 24-48 h filter).
-2. Keep only real article pages about the five shows or watchlist people. Skip listings,
+2. Keep only real article pages about the shows from `/shows` (name or any alias) or watchlist people. Skip listings,
    tag pages, video-only pages, forums, social posts and anything already sent this run.
 3. Open the ORIGINAL article (never a news.google.com link) and send it with the same fields
    as above. `publisher`: the site name as printed on the page.

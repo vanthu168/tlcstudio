@@ -19,16 +19,15 @@ Sources: `kind = youtube` (value = channel handle or id). Tier official_network.
    - `claim_nature`: `announcement` for trailers/premiere news, otherwise `fact`
    - `use_tags`: include `trailer`, `sneak-peek` or `episode-clip` as fits.
 
-## Show mapping (14/11/2026)
+## Show mapping (from GET /shows, since 14/11/2026)
 
 - Channel `90 Day Fiancé` -> `show: "90 Day Fiancé"` always.
-- Channel `TLC`: decide from title, description and hashtags, in this order:
-  1. Show name or hashtag: #90DayFiance, #TheOtherWay, #BeforeThe90Days, #HEA, #PillowTalk,
-     #90DayTheSingleLife -> `90 Day Fiancé`; #1000lbSisters -> `1000-Lb Sisters`;
-     #SisterWives -> `Sister Wives`; #WelcomeToPlathville -> `Welcome to Plathville`;
-     #7LittleJohnstons -> `7 Little Johnstons`.
+- Channel `TLC` (or any other multi-show channel): decide from title, description and
+  hashtags, in this order:
+  1. A show `name`, one of its `aliases`, or one of its `hashtags` from `GET /shows`
+     (compare without #, ignoring case) -> that show's `name`.
   2. A cast name from the watchlist (people list) -> that person's show.
-  3. None of the above (other TLC shows, e.g. #TheMadPooper) -> DO NOT SEND the video.
+  3. None of the above (TLC shows not in `/shows`, e.g. #TheMadPooper) -> DO NOT SEND the video.
      Only count it in the run report as "skipped: off-watchlist".
 - Never send a YouTube item with `show` empty or `Khác`.
 
