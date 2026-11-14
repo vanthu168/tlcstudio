@@ -1,20 +1,58 @@
 # Facebook pages and groups
 
-Sources: `kind = facebook_page` (value = page username or id) and `kind = facebook_group`.
-Tool: your Facebook read access or the browser.
+Sources: `kind = facebook_page` (value = page username, or the numeric page id when the page
+has no username) and `kind = facebook_group` (value = group id or group slug).
+Run in task `tlc-facebook-hunt`. Tool: your Facebook read access (Meta tools) first, the browser
+only if the tool cannot read the page.
 
-STRICT: read only. Never post, comment, react, share, join a group or answer group questions.
-If a group needs joining to read, skip it and say so in the run report.
+STRICT: read only. Never post, comment, react, share, follow, like, join a group, answer group
+questions, or message anyone. If a page or group cannot be read without joining or following,
+skip it and say so in the run report. Never send or ask for a verification code: if Facebook asks
+for one, stop the Facebook part of the run and say so.
 
-1. Read posts from the last 24 h.
+## Pages (`facebook_page`)
+
+1. Read posts from the last 48 h (respect `cadence_min`).
 2. One item per post:
-   - `source_type: facebook`, `signal_type: post`, `publisher`: page or group name
-   - `url`: the post permalink (`/posts/<id>`, `/permalink/<id>`, or `/groups/<g>/posts/<id>`)
-   - `title`: first line, `body`: post text, `media_urls`: images in order
+   - `source_type: facebook`, `signal_type: post`
+   - `publisher: "@<value>"` exactly as in `/hunt-sources` (the gateway grades the item from it)
+   - `evidence.author_handle`: the same `<value>`
+   - `url`: the post permalink. Accepted shapes, best first:
+     `https://www.facebook.com/<value>/posts/<id>`, `.../<value>/videos/<id>`,
+     `https://www.facebook.com/permalink.php?story_fbid=<id>&id=<page id>`.
+     Never send `/share/...` short links, `l.facebook.com` redirects, or the page home.
+     Drop tracking parameters (`__cft__`, `__tn__`).
+   - `title`: first line of the post (max 500), `body`: full post text (max 3000)
+   - `quote_verbatim`: the sentence that carries the news
+   - `media_urls`: images in order, taken from the post itself
    - `engagement`: reactions, `comments`: comment count
    - `top_comments`: up to 10 `{body, score}`, NO names
+   - `published_at` from the post time
 3. Classification:
-   - Official cast or TLC page: `claim_nature: fact` or `announcement`.
-   - Fan page or group: `rumor`, `reaction` or `opinion`. Never `fact`, even if it sounds sure.
-   - Group posts are often from private people: do not copy names, profile links or photos
-     of the poster. `body` text only.
+   - Official TLC/show page or a cast member's own page: `fact` for their own statements,
+     `announcement` for premieres, trailers, cast reveals.
+   - A page that only reposts other outlets: `claim`, and put the original outlet in `raw.origin`.
+   - Shared links to articles: send the post, and ALSO the article itself as `source_type: news`
+     only if its site is in `/hunt-sources`.
+
+## Groups (`facebook_group`)
+
+Only groups that appear in `/hunt-sources` AND that your account can already read.
+
+1. Read posts from the last 24 h, top posts by comments first, at most 20 per group per run.
+2. One item per post: `source_type: facebook`, `signal_type: post`,
+   `publisher: "@<value>"`, `url: https://www.facebook.com/groups/<value>/posts/<id>`.
+3. Privacy: group posters are private people. Do NOT send their names, profile links, photos,
+   or screenshots that show them. `body` = post text only; `top_comments` = text and score only.
+   If the post is about a private person (not cast), skip it.
+4. Classification: `rumor`, `reaction` or `opinion`. Never `fact`, even if it sounds sure.
+   A group post that links to a cast member's own post: send the cast post instead (from the
+   cast page) if that page is in the list.
+
+## Run order and batching
+
+- Pages first (official, then cast), groups last.
+- Batches of about 8 posts: read, build items, `POST`, then record HTTP code, inserted,
+  duplicates, rejected in your run note before the next batch.
+- Report one line: pages read, groups read, skipped (why), items sent, inserted, duplicates,
+  rejected.

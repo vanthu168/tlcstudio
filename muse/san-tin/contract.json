@@ -1,5 +1,5 @@
 {
-  "contract_version": 19,
+  "contract_version": 21,
   "updated": "2026-11-14",
   "gateway": "https://txlesggxvribpwsqzrod.supabase.co/functions/v1/ingest",
   "auth": "Header x-ingest-key = the Muse key from your private settings. Never write it anywhere.",

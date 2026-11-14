@@ -1,6 +1,6 @@
 ---
 name: tlc-news-hunt
-version: 5
+version: 6
 updated: 2026-11-14
 owner: TLC Post (Javis)
 ---
@@ -61,6 +61,7 @@ Pull this folder at the start of EVERY run. If this file changed, follow the new
 | `tlc-reddit-hourly-hunt` | subreddit | every hour |
 | `tlc-news-hunt` | news_site, rss, youtube | every hour |
 | `tlc-social-hunt` | instagram | every 3 hours (at :15) |
+| `tlc-facebook-hunt` | facebook_page, facebook_group | every 3 hours (at :05) |
 
 TikTok is switched off by the owner (14/11/2026). Do not open TikTok in any task, even if
 a `tiktok` source appears in `/hunt-sources`. See `platforms/tiktok.md`.
