@@ -24,3 +24,18 @@ Sources: `kind = news_site` (value = domain) and `kind = rss`. Tier is press_1 o
      `fact` when it embeds the cast member's own post, `legal` when citing court records,
      `rumor` for "fans think", `opinion` for reviews/recaps
    - `evidence.permalink`: the article URL; if it embeds a social post, add `raw.embedded_urls`.
+
+## Wide search (every news run, after the listed sites)
+
+The listed sites do not cover everything. Since 14/11/2026 Apps Script (Google News) is off,
+so this step replaces it.
+
+1. Web-search each of the five show names, plus every watchlist name that appeared in a
+   listed-site article this run, limited to the last 48 h (news tab / past 24-48 h filter).
+2. Keep only real article pages about the five shows or watchlist people. Skip listings,
+   tag pages, video-only pages, forums, social posts and anything already sent this run.
+3. Open the ORIGINAL article (never a news.google.com link) and send it with the same fields
+   as above. `publisher`: the site name as printed on the page.
+4. A site that is not in hunt-sources is fine: the gateway grades it press_2 (C).
+   If one unlisted site gives you 3 or more relevant articles in a day, mention its domain
+   in the run report so George can add it to the source list.

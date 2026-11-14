@@ -12,3 +12,7 @@ Sources: `kind = youtube` (value = channel handle or id). Tier official_network.
    - `media_url`: `https://i.ytimg.com/vi/<id>/hqdefault.jpg`
    - `claim_nature`: `announcement` for trailers/premiere news, otherwise `fact`
    - `use_tags`: include `trailer`, `sneak-peek` or `episode-clip` as fits.
+
+Schedule: since 14/11/2026 YouTube is checked inside the hourly news run, but each channel
+only when it is due (`cadence_min` from hunt-sources, default 360 = every 6 h). Track the
+last check time yourself; if unsure, check it.
