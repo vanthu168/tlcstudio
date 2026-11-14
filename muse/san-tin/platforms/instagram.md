@@ -1,7 +1,10 @@
 # Instagram
 
 Sources: `kind = instagram` (value = handle without @). Tier official_cast.
-Tool: your Instagram read access or the browser. Read only: never like, follow or comment.
+Tool: the browser, signed in with the SECONDARY reading account only (never the owner's
+main account). Read only: never like, follow, unfollow, comment, message, post, or change
+any setting. Never send or ask for a verification code: if Instagram asks for one, stop the
+Instagram part of the run and say so in the report.
 
 1. Open the profile, read posts and reels from the last 48 h. Stories: only if visible
    without interacting; send them with `signal_type: story`.
@@ -26,3 +29,18 @@ gateway uses these two fields to grade the item as official_cast (A). Missing th
    - Two cast members stop following each other: `signal_type: unfollow`,
      `claim_nature: unfollow`, url = the profile, title describes who unfollowed whom.
      Only when you checked both follow lists yourself.
+
+## Run order and batching (lessons from 14/11/2026)
+
+- Hunt and submit Instagram FIRST in `tlc-social-hunt`, before anything else in the task.
+- Work in small batches of about 8 posts: read them, build the items, `POST` them, then
+  write the batch result (HTTP code, inserted, duplicates, rejected) to your own run note
+  before starting the next batch. A run that stops halfway must not lose finished batches.
+- Always record the submit result. "Sent" without an HTTP code and counts is not a result.
+
+## Images
+
+- Get `media_urls` by opening each post or reel page itself, not from the profile grid
+  thumbnails. For a carousel, take every image in order.
+- Stories: send text only, no image (story image links expire within hours).
+- The gateway copies images to temporary storage, so a valid direct image URL is enough.

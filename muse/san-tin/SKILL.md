@@ -1,6 +1,6 @@
 ---
 name: tlc-news-hunt
-version: 3
+version: 4
 updated: 2026-11-14
 owner: TLC Post (Javis)
 ---
@@ -55,7 +55,10 @@ Pull this folder at the start of EVERY run. If this file changed, follow the new
 |---|---|---|
 | `tlc-reddit-hourly-hunt` | subreddit | every hour |
 | `tlc-news-hunt` | news_site, rss, youtube | every hour |
-| `tlc-social-hunt` | instagram, tiktok | every 3 hours; TikTok sources only when their `cadence_min` (360) is due |
+| `tlc-social-hunt` | instagram | every 3 hours (at :15) |
+
+TikTok is switched off by the owner (14/11/2026). Do not open TikTok in any task, even if
+a `tiktok` source appears in `/hunt-sources`. See `platforms/tiktok.md`.
 
 A task ignores sources of platforms that belong to another task.
 
@@ -91,7 +94,7 @@ When unsure between two, choose the WEAKER one (rumor over claim, claim over fac
 
 Use for what the item is good for: `breakup`, `wedding`, `pregnancy`, `baby`, `weight-loss`,
 `surgery`, `health`, `arrest`, `lawsuit`, `divorce`, `money`, `new-season`, `premiere`,
-`casting`, `throwback`, `drama`, `feud`, `glow-up`, `instagram-post`, `tiktok-video`,
+`casting`, `throwback`, `drama`, `feud`, `glow-up`, `instagram-post`,
 `episode-recap`, `behind-the-scenes`. New tags are allowed when none fit.
 
 ### evidence: always fill
