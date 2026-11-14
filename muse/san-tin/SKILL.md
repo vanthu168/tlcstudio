@@ -1,6 +1,6 @@
 ---
 name: tlc-news-hunt
-version: 1
+version: 2
 updated: 2026-11-14
 owner: TLC Post (Javis)
 ---
@@ -95,7 +95,7 @@ Use for what the item is good for: `breakup`, `wedding`, `pregnancy`, `baby`, `w
 
 - `url` is the permalink of the post or article, not a homepage or search page.
 - `title` is the original headline or the first line of the post (max 500 chars).
-- `body` is the original text, up to 3000 chars.
+- `body` is the original text: news articles up to 12000 chars (full text), every other source up to 3000.
 - `show` is one of the five shows when you can tell, otherwise leave it out.
 - `people_hint` uses names exactly as in the watchlist.
 - `published_at` comes from the page, not a guess. If the page has no date, leave it out.
