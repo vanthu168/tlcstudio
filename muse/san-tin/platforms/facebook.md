@@ -43,7 +43,8 @@ post by its permalink works. So find the post links first, then read each one:
      Drop tracking parameters (`__cft__`, `__tn__`).
    - `title`: first line of the post (max 500), `body`: full post text (max 3000)
    - `quote_verbatim`: the sentence that carries the news
-   - `media_urls`: images in order, taken from the post itself
+   - `media_urls`: images in order, taken from the post itself, as direct `fbcdn.net` image
+     file links (not photo page links). Video post: the thumbnail.
    - `engagement`: reactions, `comments`: comment count
    - `top_comments`: up to 10 `{body, score}`, NO names
    - `published_at` from the post time
@@ -58,13 +59,31 @@ post by its permalink works. So find the post links first, then read each one:
 
 Only groups that appear in `/hunt-sources` AND that your account can already read.
 
-1. Use the same link finding as pages (group feed, then browser, then search). Read posts from the last 24 h, top posts by comments first, at most 20 per group per run.
-2. One item per post: `source_type: facebook`, `signal_type: post`,
+1. Use the same link finding as pages (group feed, then browser, then search). Read posts from the
+   last 24 h, sorted by comment count, highest first.
+2. Send ONLY posts with **30 comments or more**, at most 5 per group per run, highest comments
+   first. The gateway keeps the first 3 posts with 30+ comments per group per day (Vietnam time)
+   and marks the rest ignored, so the order you send matters.
+3. One item per post: `source_type: facebook`, `signal_type: post`,
    `publisher: "@<value>"`, `url: https://www.facebook.com/groups/<value>/posts/<id>`.
-3. Privacy: group posters are private people. Do NOT send their names, profile links, photos,
-   or screenshots that show them. `body` = post text only; `top_comments` = text and score only.
-   If the post is about a private person (not cast), skip it.
-4. Classification: `rumor`, `reaction` or `opinion`. Never `fact`, even if it sounds sure.
+4. **Images (required when the post has them).** In group posts the image is what drives the
+   comments, so send it:
+   - `media_urls`: the full-size image files of the post itself, in order, as direct
+     `https://scontent-...fbcdn.net/...` links (open the photo and take the image file link, not
+     the `/photo/?fbid=` page). Max 10. The links expire in a few days; the gateway saves them
+     within minutes.
+   - Send: show screenshots and stills, promo pictures, pictures a cast member posted publicly,
+     meme cards (keep them as they are, watermark included; never crop or edit).
+   - Do NOT send: personal photos of the poster or of any private person (selfies, family,
+     their home), screenshots of comments or messages that show a private person's name or
+     avatar, the poster's profile picture. If you are not sure who is in the picture, leave the
+     image out and still send the post.
+   - Video posts: send the video thumbnail as the one image.
+5. `top_comments`: 3 to 5 comments with the most reactions, `{body, score}` only, NO names,
+   NO tags of people (remove `@name`). Skip comments that are only a name tag or an emoji.
+6. Privacy: group posters are private people. Do NOT send their names or profile links.
+   `body` = post text only. If the post is about a private person (not cast), skip it.
+7. Classification: `rumor`, `reaction` or `opinion`. Never `fact`, even if it sounds sure.
    A group post that links to a cast member's own post: send the cast post instead (from the
    cast page) if that page is in the list.
 

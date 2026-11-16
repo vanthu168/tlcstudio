@@ -1,6 +1,6 @@
 ---
 name: tlc-news-hunt
-version: 6
+version: 6.2
 updated: 2026-11-14
 owner: TLC Post (Javis)
 ---
